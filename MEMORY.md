@@ -188,3 +188,51 @@ LLM/사용자가 외부 자료를 참조해 코드/문서를 수정할 때:
 새 머신에서 Claude Code 가 자동으로 `CLAUDE.md` 또는 `AGENT.md` 를 읽어 컨텍스트를 얻는다 — 그래도 사람은 본 `MEMORY.md` 를 먼저 보는 것을 권장.
 
 > **공개 commit 시 체크리스트** ([PRIVACY.md](./PRIVACY.md)) — 단지명·계약자·금액·외부 파일명 추가 안 했는지 push 전 grep 으로 확인.
+
+---
+
+## 11. GitHub 미러 환경 (Perforce 워크스페이스 사용 시)
+
+### 11.1. 구성
+- **GitHub repo**: `https://github.com/neoocean/house-model` (public, GPL-3.0, Three.js MIT 동봉).
+- **자동 미러 스크립트**: `~/bin/mirror-to-github.sh` — 매 P4 submit 직후 실행.
+- **민감 키워드 파일** (저장소 외부 비공개): `~/.house-model-sensitive-keywords.txt` — push 전 audit 차단용. 한 줄에 키워드 1 개, 빈 줄·`#`-주석 허용.
+- **로그 파일**: `~/.house-model-mirror.log` — 미러 실행 이력.
+
+### 11.2. 워크플로우 (P4 ↔ GitHub)
+```
+변경 작업
+  ↓
+p4 submit -d "..."             # P4 (private) 에 commit
+  ↓
+~/bin/mirror-to-github.sh      # 자동 미러 (rsync + audit + commit + push)
+  ↓
+GitHub (public) 에 동기화 완료
+```
+
+스크립트 5 단계:
+1. rsync `model/` → `~/repos/house-model/` (`.git/`, `.p4*`, `.DS_Store`, `.claude/` 제외)
+2. git-only 파일 복구 (LICENSE / README.md / .gitignore / vendor/THREE_LICENSE)
+3. 변경 점검 (없으면 종료)
+4. 민감 키워드 audit (`~/.house-model-sensitive-keywords.txt` 패턴 매칭 시 exit 2 push 차단)
+5. commit (P4 CL 번호·설명 자동 부기) + push
+
+### 11.3. 다른 머신에서 미러 환경 셋업 시
+1. GitHub repo 클론: `git clone https://github.com/neoocean/house-model.git ~/repos/house-model`
+2. 인증: SSH key 등록 또는 `gh auth login`
+3. 키워드 파일 작성: `~/.house-model-sensitive-keywords.txt` — [PRIVACY.md](./PRIVACY.md) §4 참조 (본 repo 에 키워드 자체 commit 금지)
+4. 스크립트 복사: `~/bin/mirror-to-github.sh` (현재 머신에서 scp 또는 새로 작성)
+5. 실행 권한: `chmod +x ~/bin/mirror-to-github.sh`
+6. 테스트: `~/bin/mirror-to-github.sh --dry-run`
+
+### 11.4. GitHub-only 워크플로우 (Perforce 없는 머신)
+P4 미사용 환경에서는 GitHub 를 단일 ground truth 로 사용:
+```bash
+git clone https://github.com/neoocean/house-model.git
+cd house-model
+# 작업 후
+git add .
+git commit -m "..."
+git push
+```
+다른 P4 워크스페이스가 변경을 가져오려면 그 머신에서 `git pull` 후 `p4 reconcile` 등으로 P4 에 흡수 (드물게 필요).

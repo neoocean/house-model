@@ -2,17 +2,19 @@
 
 > ⚠️ **공개 GitHub repo (`house-model`)** — 단지명·계약자·금액·외부 파일명 등 신상 식별 정보 추가 절대 금지. [PRIVACY.md](./PRIVACY.md) 참조.
 >
-> 본 문서는 `model/` 디렉토리의 현재 빌드 상태를 기록한다 (콘센트 SHIFT-aim 하이라이트 추가).
+> 본 문서는 `model/` 디렉토리의 현재 빌드 상태를 기록한다 (P4 CL 50248 / 미러 워크플로우 정착).
 > 코드 자체가 권위 자료이며, 본 문서는 그 의도·동작·구조를 빠르게 파악하기 위한 안내서다.
 >
-> **빌드 구성** (총 ~870 KB):
-> - `index.html` — 1 972 줄 / 96 KB. 메인 HTML + UI/CSS + 인라인 JS (씬·라이팅·재료·레이아웃·헬퍼·텍스처·바닥·천장·외벽·내벽·걸레받이·문·라벨·조명·벽지·키친핏·외부문·신발장·카메라·컨트롤·디버그·애니메이션 루프). `_doors[]` 애니메이션 루프는 `axis` 필드(기본 `'y'` 스윙, `'x'`/`'z'` 플랩) 분기 보간.
-> - `furniture.js` — `FURN_REGISTRY` + `FURN_META` (27 개) + `FURN_CATALOG` + 가구 IIFE 27 개 (드럼세탁기·소파·다이닝·자전거·침대·책상·책꽂이 3종·벽걸이 자전거·신발장·붙박이장·주방 4종(하부 앞/우, 상부 앞, 플랩 상부 우)·욕실 위생기구·벽등).
-> - `minimap.js` — 1 156 줄 / 58 KB. 미니맵 IIFE (`ROOMS`/`WALLS`/`DOORS`/`FURNITURE`/`WINDOWS` 데이터 + `WINDOWS_BBOX`/`FURNITURE_BBOX` + 정적 레이어 캐시 + 번호 배지 + 어셔션 §M/§P + SHIFT 치수 표시).
-> - `vendor/three.min.js` — 614 KB. Three.js 0.150.1 (UMD). `<script src=…>` 로 로드.
-> - `DESIGN.md` — 본 문서.
+> **빌드 구성** (총 ~880 KB):
+> - `index.html` — 2 078 줄 / 105 KB. 메인 HTML + UI/CSS + 인라인 JS (씬·라이팅(`LIGHTING`)·재료(`PAL`)·`ROOM_PROFILE`·`VARIANT`·레이아웃·헬퍼·텍스처(`TILE_CONFIG`/`WALLPAPER_CONFIG`)·`WALLPAPER_OVERRIDES`·바닥·천장·외벽·내벽·걸레받이·문·라벨·조명·벽지·키친핏·외부문·신발장·**`OUTLETS` 17 개 + `_outlets[]` 레지스트리**·카메라·컨트롤·1 키 가구 토글·디버그·애니메이션 루프). `_doors[]` 애니메이션 루프는 `axis` 필드(기본 `'y'` 스윙, `'x'`/`'z'` 플랩) 분기 보간.
+> - `furniture.js` — 2 127 줄 / 105 KB. `FURN_REGISTRY` + `FURN_META` (27 개) + `FURN_CATALOG` (13 종 템플릿) + 가구 IIFE 27 개 (드럼세탁기·소파·다이닝·자전거·침대·책상·책꽂이 3종·벽걸이 자전거·신발장·붙박이장·주방 4종(하부 앞/우, 상부 앞, **축소판 반투명 플랩 상부 우**)·욕실 위생기구·벽등).
+> - `minimap.js` — 1 208 줄 / 60 KB. 미니맵 IIFE (`ROOMS`/`WALLS`/`DOORS`/`FURNITURE`/`WINDOWS` 데이터 + `WINDOWS_BBOX`/`FURNITURE_BBOX`/`WINDOWS_H`/`WINDOWS_Y0` + 정적 레이어 캐시 + 번호 배지 + SHIFT 치수 표시·**콘센트 하이라이트** + 어셔션 §M/§P/§U/§CC + 콘솔 헬퍼 `_inspect`/`_gap`/`_listRoom`).
+> - `vendor/three.min.js` — 600 KB. Three.js 0.150.1 (UMD, MIT). `vendor/THREE_LICENSE` 동봉.
+> - `DESIGN.md` (본 문서) / `MEMORY.md` / `CLAUDE.md` / `AGENT.md` / `PRIVACY.md` / `README.md` (GitHub 만).
 >
 > 빌드 단계 없음 — 브라우저에서 `index.html` 을 열기만 하면 된다.
+>
+> **GitHub 미러**: `https://github.com/neoocean/house-model` — Perforce → GitHub 자동 미러 스크립트 (`~/bin/mirror-to-github.sh`) 가 매 P4 submit 직후 호출되어 push 됨 (CL 번호·설명을 commit message 에 자동 부기, 민감 키워드 audit 차단 포함). 자세한 정책: `CLAUDE.md` "Perforce → GitHub 자동 미러 워크플로우" + `PRIVACY.md`.
 
 ## 1. 의도 (Intent)
 
@@ -237,26 +239,11 @@
 - `_stabilizedAim(raw)` — `AIM_HOLD_MS = 220` 시간 기반 hysteresis (자세한 사례는 §4.7).
 - `_dimGroup.visible` 로 SHIFT 해제/aim 미명중 시 숨김. 텍스처·머티리얼·LineGeometry 모두 `dispose` 처리.
 
-### 3.7. 변경 시 주의점
-- 좌표 상수 6 개와 미명명 리터럴 (`0.9`, `0.6`, `0.10`, `0.20` 등) 이 3D 지오메트리·라벨·라이트·미니맵 4~5 곳에 동기화 필요. `3.5` 는 항목 A 에서 `zLR2` 로 단일 원천화됨.
-- `_doors[]` 푸시 순서가 **미니맵 `DOORS[]` 배열 순서와 1:1 일치해야** 함 — SHIFT 조준 라벨이 `ROOMS.length + i + 1` 로 인덱스를 계산하므로 어긋나면 라벨이 실제 객체와 불일치한다. 어셔션 §M 이 길이 검사, §P 가 마이그레이션된 가구의 spec ↔ 배열 일치 검사.
-- `FURNITURE`, `FURNITURE_BBOX`, `WINDOWS`, `WINDOWS_BBOX`, `WINDOWS_H`, `WINDOWS_Y0` 도 동일 — 인덱스 일관성이 SHIFT 라벨·치수 표시·미니맵 배지 정확성의 전제.
-- 새 문/가구/창을 추가할 때 동기 삽입 위치:
-  - 문: 3D 빌더 IIFE (`_doors.push`) + `minimap.js` 의 `DOORS[]` 같은 인덱스
-  - 가구: `defineFurniture(spec, build)` 또는 기존 IIFE + `minimap.js` 의 `FURNITURE[]` + `FURNITURE_BBOX[]`
-  - 창: 3D 빌더 IIFE + `minimap.js` 의 `WINDOWS[]` + `WINDOWS_BBOX[]` + **`WINDOWS_H[]` + `WINDOWS_Y0[]`** (parallel 배열)
-- 가구 마이그레이션을 추가로 진행할 때: `spec.id` 를 가구 인덱스 + 47 (47..75) 과 일치시키고 (도어 추가로 글로벌 @FURN# 번호가 시프트되어도 키는 안정), `spec.name` 은 `FURNITURE[id-47][2]` 와 글자별 일치 — §P 어셔션이 자동 검증.
-- 텍스처 변경 시: `TILE_CONFIG` / `WALLPAPER_CONFIG` 만 수정. 빌더 함수(`buildTileCanvas` / `buildWallpaperTexture`) 본문은 손대지 않음.
-- 콘센트 변경 시: `index.html` 의 `OUTLETS` 배열만 수정 (위치 조정·신규 추가·삭제). 빌더 `buildOutlet()` 본문은 손대지 않음. `face` 는 “콘센트가 향하는 방향” 이고 `x/y/z` 는 *벽 내면* 좌표.
-
-### 3.6.5. 벽 콘센트 (`OUTLETS`)
-`index.html` 의 신발장 섹션 다음에 데이터 중심 콘센트 시스템. 17 개 항목이 각 방의 표준 위치(소파 옆/주방 작업대 위/침대맡/세면대 위/세탁기/현관 등) 에 배치됨. `OUTLETS = [{x, y, z, face, gangs, kind?, label?}, ...]` 의 한 객체 추가/삭제로 콘센트 추가/제거 가능. `face` 는 콘센트 패널이 *향하는* 방향(N/S/E/W = +z/-z/+x/-x), `x/y/z` 는 벽 내면 좌표 (예: 남쪽 외벽 z=0 의 내면 z=`WT/2`=0.06). `gangs`=1/2/3, `kind`=`'wet'` 시 욕실 방수형(베이지 톤). 빌더가 5 mm 클리어런스로 벽지와 z-fight 회피.
-
 ### 3.6.4. 시나리오 적합도 개선 (항목 U~DD)
 
 “가구 배치 시뮬레이션 / 자재 검토 / 인테리어 결과 예상” 자연어 요청을 LLM 이 안정적으로 처리하기 위한 메타 카탈로그·검증·설정 구조 확장. 동작 비트-동일.
 
-- **[항목 U 완료] 가구 메타 카탈로그 `FURN_META`** — `furniture.js` 상단(`FURN_REGISTRY` 옆) 에 29 개 가구 모두에 대한 `{id, name, room, pos, size:{W,D,H}, bbox, source}` 단일 객체 추가. 키는 가구 인덱스 + 47 (47..75) — 도어 추가로 글로벌 `@FURN#` 번호가 시프트되어도 키는 그대로 유지. K 마이그레이션 여부와 무관하게 LLM·콘솔이 한 번의 lookup 으로 가구 메타데이터 확보. `Object.values(FURN_META).filter(m => m.room === '욕실')` 같은 질의 가능. 미니맵 IIFE 끝에서 `[U]` 어셔션이 `FURN_META[id]` ↔ `FURNITURE[idx]` ↔ `FURNITURE_BBOX[idx]` 일치를 검증.
+- **[항목 U 완료] 가구 메타 카탈로그 `FURN_META`** — `furniture.js` 상단(`FURN_REGISTRY` 옆) 에 27 개 가구 모두에 대한 `{id, name, room, pos, size:{W,D,H}, bbox, source}` 단일 객체. 키는 가구 인덱스 + 47 (47..73) — 가구 추가/삭제로 글로벌 `@FURN#` 번호가 시프트되어도 키는 인덱스 위치를 따름. K 마이그레이션 여부와 무관하게 LLM·콘솔이 한 번의 lookup 으로 가구 메타데이터 확보. `Object.values(FURN_META).filter(m => m.room === '욕실')` 같은 질의 가능. 미니맵 IIFE 끝에서 `[U]` 어셔션이 `FURN_META[id]` ↔ `FURNITURE[idx]` ↔ `FURNITURE_BBOX[idx]` 일치를 검증.
 
 - **[항목 CC 완료] 클리어런스/충돌 검사** — 미니맵 IIFE 끝 어셔션 블록에 init time 1 회 실행되는 충돌 검사 추가:
   - 가구 ↔ 가구: xz 사각형 + (양쪽 6-요소 bbox 일 때) y 범위 겹침. 5 mm 톨러런스(접촉은 허용).
@@ -274,6 +261,55 @@
   SHIFT-aim 시각 라벨이 “지금 보고 있는 것” 을 알려주는 반면, 인스펙터 헬퍼는 “이름·번호로 정량 질의” 가 가능. 둘은 보완관계.
 
 - **[항목 Y 완료] 일반 가구 템플릿 `FURN_CATALOG`** — `furniture.js` 의 `FURN_META` 다음에 자주 추가될 표준 가구 13 종 카탈로그. 카테고리: 옷장 3 종(슬라이딩 1200×3 외형), 책장·책상 2 종, LG DIOS 가전 4 종(냉장고·식기세척기·인덕션·전자레인지 — 일반 카탈로그 공개 모델 번호), 표준 가구 4 종(퀸/킹 침대, 2-seater 소파, 4인 다이닝 테이블). 각 항목 `{kind, W, D, H, label, model?, color?}` — 신규 가구 요청 시 LLM 이 카탈로그 lookup 으로 정확한 치수/라벨 적용. 데이터만 — 실제 메시 빌더는 별도 IIFE 작성 필요.
+
+### 3.6.5. 벽 콘센트 (`OUTLETS`) + SHIFT-aim 하이라이트
+- **데이터 정의** — `index.html` 의 신발장 섹션 다음에 데이터 중심 콘센트 시스템. 17 개 항목이 각 방의 표준 위치(소파 옆/주방 작업대 위/침대맡/세면대 위/세탁기/현관 등) 에 배치됨. `OUTLETS = [{x, y, z, face, gangs, kind?, label?}, ...]` 의 한 객체 추가/삭제로 콘센트 추가/제거. `face` 는 콘센트 패널이 *향하는* 방향(N/S/E/W = +z/-z/+x/-x), `x/y/z` 는 벽 내면 좌표 (예: 남쪽 외벽 z=0 의 내면 z=`WT/2`=0.06). `gangs`=1/2/3, `kind`='wet' 시 욕실 방수형(베이지 톤). 빌더가 5 mm 클리어런스로 벽지와 z-fight 회피.
+- **레지스트리 노출** — `buildOutlet()` 가 각 plate 메시를 글로벌 `_outlets[]` 에 `{plate, spec}` 으로 push. minimap.js 의 SHIFT-aim 검출이 이 레지스트리를 참조.
+- **SHIFT-aim 하이라이트** — `_getAimInfo()` 우선순위: 문 → **콘센트** → 가구 → 창문 → 벽 → 방. 콘센트 plate 가 잡히면:
+  - 식별 라벨: `콘센트 N: <label> (<gangs>구[, 방수])` — 주황 배경 (`.t-outlet`)
+  - 시각 하이라이트: `_showOutletHighlight()` 가 `THREE.BoxHelper(plate, 0xffe040)` 노란 외곽선을 띄움 (`depthTest:false`, `renderOrder:998`).
+  - 220 ms hysteresis (§3.6.3) 동일 적용 — 깜빡임 없음.
+  - 대상 변경 시 이전 BoxHelper geometry/material 모두 `dispose()` (GPU 메모리 누수 0).
+
+### 3.6.6. 공개 GitHub 미러 + 민감정보 보호 정책
+- **GitHub repo**: `https://github.com/neoocean/house-model` (public, GPL-3.0).
+- **단일 자동화 스크립트**: `~/bin/mirror-to-github.sh` — 매 P4 submit 직후 호출. 5 단계 (rsync → git-only 파일 복구 → 변경 점검 → 키워드 audit → commit + push). commit message 는 P4 의 최신 CL 번호·설명을 자동 부기 (예: `P4 CL 50248 미러: <설명 첫 줄>`).
+- **민감정보 차단 안전망**: `~/.house-model-sensitive-keywords.txt` (저장소 외부 비공개) 의 패턴이 `git diff --cached` 에 포함되면 push 차단(exit 2). 차단 시 사용자 검토 후 수동 commit 가능.
+- **PRIVACY.md** 가 단일 정책 원천:
+  - §1 절대 commit 금지 5 카테고리 (거주자/거래/금전/외부 첨부/시스템 메타)
+  - §4 push 전 grep 자동 점검 가이드
+  - §5 노출 시 사후 처치
+  - §6 LLM 에이전트 작업 시 주의사항 — `CLAUDE.md`/`AGENT.md` 의 상단 경고 박스가 자동 컨텍스트로 LLM 에 노출되어 문서 변경 시 식별 정보 추가를 미연 방지.
+- **현황**: 초기 미러 시점 audit 통과, 식별 키워드 9 종 (단지·시공사·거래처·외부 파일명·시스템 메타) 모두 0 건.
+
+### 3.7. 변경 시 주의점
+
+**인덱스 일관성** (어셔션이 자동 검증 — `[M]` 길이, `[P]` spec ↔ 배열, `[U]` `FURN_META` ↔ 배열, `[CC]` 가구·벽 충돌)
+- `_doors[]` 푸시 순서가 **미니맵 `DOORS[]` 배열 순서와 1:1 일치**해야 함 (SHIFT 조준 라벨이 `ROOMS.length + i + 1` 로 인덱스 계산).
+- `FURNITURE`, `FURNITURE_BBOX`, `WINDOWS`, `WINDOWS_BBOX`, `WINDOWS_H`, `WINDOWS_Y0`, `FURN_META` 모두 동일 — 인덱스 일관성이 SHIFT 라벨·치수·미니맵 배지 정확성의 전제.
+
+**좌표/리터럴 단일 원천**
+- 그리드 상수 6 개 + `zLR2 = 3.5` 로 단일화 (항목 A).
+- 미명명 리터럴 (`0.9`, `0.6`, `0.10`, `0.20` 등) 은 3D + 벽지 + 걸레받이 + 미니맵 4~5 곳 동기화 필요.
+
+**신규 항목 추가 시 동기 위치**
+- 문: 3D 빌더 IIFE (`_doors.push`) + `minimap.js` 의 `DOORS[]` 같은 인덱스
+- 가구: `defineFurniture(spec, build)` 또는 기존 IIFE + `minimap.js` 의 `FURNITURE[]` + `FURNITURE_BBOX[]` + **`furniture.js` 의 `FURN_META[id]`**
+- 창: 3D 빌더 IIFE + `minimap.js` 의 `WINDOWS[]` + `WINDOWS_BBOX[]` + **`WINDOWS_H[]` + `WINDOWS_Y0[]`** (parallel)
+- 콘센트: `index.html` 의 `OUTLETS` 배열에만 추가/수정 — `buildOutlet()` 가 자동으로 mesh 생성·`_outlets[]` 등록·SHIFT 조준 검출 활성화.
+
+**카탈로그·설정 단일 원천 (변경은 한 곳만)**
+- 텍스처: `TILE_CONFIG` / `WALLPAPER_CONFIG` 만 수정. 빌더 함수 본문은 손대지 않음.
+- 조명: `LIGHTING.rooms[i]` (방별) / `LIGHTING.ambient`/`sun` (전체).
+- 우드톤: `PAL.wood.*` (마이그레이션된 가구만; 미마이그레이션은 IIFE 인라인).
+
+**가구 마이그레이션 시**
+- `spec.id` 를 가구 인덱스 + 47 와 일치시킴 (가구 추가/삭제로 글로벌 `@FURN#` 번호가 시프트되어도 키는 인덱스 위치 유지).
+- `spec.name` 은 `FURNITURE[id-47][2]` 와 글자별 일치 — `[P]` 어셔션이 자동 검증.
+
+**민감정보 / GitHub 미러**
+- 모든 변경 후 `~/bin/mirror-to-github.sh` 호출 (P4 워크스페이스에서 작업 시).
+- 식별 정보 (단지·계약자·거래처·금액·외부 파일명) 추가 절대 금지 — 키워드 audit 가 차단하지만 사람·LLM 모두 commit 전 [PRIVACY.md](./PRIVACY.md) 체크리스트 확인.
 
 ## 4. 시행착오 / 교훈
 
@@ -364,3 +400,47 @@
 **완화**: 디버그 모드(`?debug`) + 어셔션(§M/§P) + 비트-동일 보존을 변경 원칙으로 일관 유지. 변경 후 사용자 피드백을 빠르게 받아 보정.
 
 **교훈**: 단일 HTML 뷰어 환경에서 LLM 자동 검증은 한계가 명확. 사용자 피드백 사이클을 짧게 가져가는 게 최선.
+
+### 4.12. 가구 삭제로 인한 글로벌 `@FURN#` 시프트 (CL 50227)
+
+**문제**: 침실 1 책꽂이 5 → 3 으로 줄이는 과정에서 `@FURN#66` (책꽂이 3) / `@FURN#68` (책꽂이 5) 두 항목 제거 → `@FURN#69`+ 의 모든 후속 가구 ID 가 -2 시프트. 변경해야 할 파일 6 곳:
+1. `furniture.js` `FURN_META` (id 필드 + 항목 자체)
+2. `furniture.js` 책꽂이 IIFE (`makeBookcase` 호출 5→3)
+3. `furniture.js` 후속 가구의 `@FURN#NN` 앵커 주석 7 개
+4. `minimap.js` `FURNITURE[]` (3 행 + 후속 주석)
+5. `minimap.js` `FURNITURE_BBOX[]` (5 → 3 + 후속 주석)
+6. `minimap.js` `DOORS[]` 주석의 `@FURN#NN` 참조 + 헤더 주석 + `i=N → @FURN#M` 표기
+
+**놓친 것**: 후속 CL 50233 에서 발견 — `defineFurniture(id:75, ...)` 에서 id 가 시프트되지 않고 75 로 남아 있어 `[P]` 어셔션 경고 (`spec.id=75 가 FURNITURE[] 범위 밖`). spec.id 까지 포함해 5 곳 모두 동기화 필요.
+
+**교훈**: 가구 삭제·추가는 글로벌 `@FURN#NN` 번호의 시프트 효과를 동반하므로 비용이 크다. 시프트가 필요할 때:
+- spec.id 를 포함해 grep 으로 모든 후속 ID 참조를 빠짐없이 추출
+- §P 어셔션이 spec.id 누락을 발견 — 첫 페이지 로드 시 콘솔 확인
+- DESIGN.md/CLAUDE.md/MEMORY.md 의 `@FURN#NN` 참조도 함께 업데이트
+- `FURN_META` 키 문서 (`'47..73'` 같은 표기) 도 갱신
+
+차후 `@FURN#NN` 같은 번호 의존 대신 라벨 텍스트나 키워드 기반 참조 컨벤션도 고려.
+
+### 4.13. 민감정보 redact 의 어려움 (CL 50244)
+
+**문제**: 작업 중 한국어 문서에 단지명·시공사명·계약 금액·외부 파일명이 자연스럽게 누적됨 (특히 MEMORY.md 가 “사람용 메모” 라는 명목 하에 풍부한 컨텍스트 축적). public GitHub repo 결정 후 모든 파일 전수 audit 필요.
+
+**해결**:
+- `grep` 기반 일괄 검사 후 5 개 파일 (MEMORY.md / DESIGN.md / CLAUDE.md / AGENT.md / furniture.js 일부) 전반 sanitize.
+- `PRIVACY.md` 단일 정책 원천 + LLM 컨텍스트 (`CLAUDE.md`/`AGENT.md` 상단 경고 박스).
+- `~/bin/mirror-to-github.sh` 가 push 직전 `~/.house-model-sensitive-keywords.txt` 와 git diff 를 grep 매칭 → exit 2 차단.
+
+**교훈**:
+- 처음부터 “이 정보는 public 에 가도 OK?” 를 매 commit 시 자문하는 습관 필요.
+- “편의를 위해 한 번만” 식의 식별 정보 추가는 GitHub 의 영구 히스토리 캐시 때문에 회수 불가.
+- LLM 컨텍스트(CLAUDE.md/AGENT.md) 는 매 세션 시작 시 자동 로드되므로 상단의 경고 박스가 가장 효과적인 “미연 방지” 메커니즘.
+
+### 4.14. P4 → GitHub 미러 자동화 (CL 50248)
+
+**문제**: P4 ↔ Git 동기화를 사람이 매번 손으로 하면 빠뜨림 → GitHub 가 뒤처짐 또는 잊혀진 commit 발생.
+
+**해결**: `~/bin/mirror-to-github.sh` 단일 호출로 5 단계(rsync → git-only 복구 → 변경 점검 → 키워드 audit → commit + push) 자동화. CLAUDE.md/AGENT.md 워크플로우 섹션이 LLM 에이전트에게 “매 `p4 submit` 직후 호출” 의무화.
+
+**놓친 것**: 첫 운영 시 `p4 describe` 출력 파싱 (`sed -n '4p'`) 가 빈 줄을 잡아 commit message 에 빈 description 들어감. `awk 'NR>=3 && NF { sub(/^[\t ]+/, ""); print; exit }'` 로 보정 후 force-push 로 amend.
+
+**교훈**: 출력 파싱 스크립트는 첫 실제 운영 데이터로 한 번 검증해야 함. P4 의 `describe -s` 출력 형식 (`Change … by …` / 빈 줄 / `\t설명` / 빈 줄 / 상세) 같은 외부 도구 의존은 종종 실수 유발.
