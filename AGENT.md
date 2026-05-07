@@ -13,9 +13,9 @@
 ## 파일 구성
 | 파일 | 역할 |
 |---|---|
-| `index.html` (~2.1 K 줄) | HTML 셸 + UI/CSS + 인라인 JS (씬·`LIGHTING`·`PAL`·`ROOM_PROFILE`·`VARIANT`·레이아웃·헬퍼·텍스처(`TILE_CONFIG`/`WALLPAPER_CONFIG`)·`WALLPAPER_OVERRIDES`·바닥·천장·외벽·내벽·걸레받이·문·라벨·조명·벽지·키친핏·외부문·신발장·카메라·컨트롤·1 키 가구 토글·디버그·애니메이션) |
-| `furniture.js` (~2 K 줄) | `FURN_REGISTRY` + `FURN_META` (28 개 메타) + `FURN_CATALOG` (13 종 템플릿) + 가구 IIFE 28 개 |
-| `minimap.js` (~1.2 K 줄) | 미니맵 IIFE — `ROOMS`/`WALLS`/`DOORS`/`FURNITURE`/`WINDOWS` 데이터 + 정적 캔버스 캐시 + SHIFT-aim 식별/치수 라벨 + init-time 어셔션 (§M/§P/§U/§CC) + 콘솔 헬퍼 (`_inspect`/`_gap`/`_listRoom`) |
+| `index.html` (~2.3 K 줄) | HTML 셸 + UI/CSS + 인라인 JS (씬·`LIGHTING`·`PAL`·`ROOM_PROFILE`·`VARIANT`·레이아웃·헬퍼·텍스처(`TILE_CONFIG`/`WALLPAPER_CONFIG`)·`WALLPAPER_OVERRIDES`·바닥·천장·외벽·내벽·걸레받이·문(swing/flap/slide)·라벨·조명·벽지·키친핏·외부문·신발장·**영림 3연동 중문**·`OUTLETS`·카메라·컨트롤·1 키 가구 토글·디버그·애니메이션) |
+| `furniture.js` (~2.1 K 줄) | `FURN_REGISTRY` + `FURN_META` (27 개 메타) + `FURN_CATALOG` (13 종 템플릿) + 가구 IIFE 27 개 |
+| `minimap.js` (~1.35 K 줄) | 미니맵 IIFE — `ROOMS`/`WALLS`/`DOORS`/`FURNITURE`/`WINDOWS` 데이터 + 정적 캔버스 캐시 + 동적 배지 (hover-spread 콜아웃) + SHIFT-aim 식별/치수 라벨 + init-time 어셔션 (§M/§P/§U/§CC) + 콘솔 헬퍼 (`_inspect`/`_gap`/`_listRoom`) |
 | `vendor/three.min.js` | Three.js 0.150.1 UMD (벤더링됨) |
 
 ## 실행 / 검증
@@ -30,12 +30,14 @@
 - init-time 어셔션 (실패 시 콘솔 경고): `[M]`/`[P]`/`[U]` 인덱스 일관성, `[CC]` 가구-가구·가구-벽 충돌.
 
 ## 안정 식별자 시스템
-모든 객체는 글로벌 `@TYPE#NN` 번호로 참조한다:
+모든 객체는 글로벌 `@TYPE#NN` 번호로 참조한다 (배지 = ROOMS+DOORS+FURN+i 누적합):
 - `@ROOM#1..15` (방 11 + PD/chase/기둥 4)
-- `@DOOR#16..46` (31)
-- `@FURN#47..74` (28)
-- `@WALL#75..117` (43, 미니맵 배열만)
-- `@WIN#118..122` (5)
+- `@DOOR#16..51` (36) — 회전형 31 + 신발장 양문 2 + 영림 3연동 중문 패널 3
+- `@FURN#47..73` (27, FURN_META id 기준 — 안정. 현재 미니맵 배지는 가구 52..78)
+- 벽 (43) — 현재 미니맵 배지 79..121
+- 창문 (5) — 현재 미니맵 배지 122..126
+
+⚠️ **배지 시프트**: DOORS / FURNITURE 추가 시 후속 카테고리 배지 자동 +N 시프트. 코드 anchor `@FURN#NN` 은 FURN_META id 로 안정하나 미니맵 배지는 다를 수 있음. 사용자가 옛 CL 의 배지 번호 (`벽 96` 등) 를 참조 시 라벨 텍스트로 grep 권장.
 
 “@FURN#48” 같은 식으로 grep 하면 `FURN_META`, `FURNITURE[]`, IIFE 섹션 헤더 모두에서 정확 매칭.
 
@@ -58,6 +60,8 @@
 | 방 자재 프로필 | `ROOM_PROFILE['방이름']` |
 | 우드톤 가구 일괄 변경 | `PAL.wood.*` (마이그레이션된 가구만) |
 | 신규 가구 추가 | `defineFurniture` 권장 + `FURN_META[id]` + `FURNITURE[]` + `FURNITURE_BBOX[]` + (인터랙티브 도어) `_doors.push` + `DOORS[]` |
+| 신규 미닫이 도어 추가 | `_doors.push({kind:'slide', linkGroup:'<id>', pivot, doorMesh, slideAxis, slideOrigin, slideOpen, isOpen})` + `DOORS[]` 동기 (assertion §M 준수). doorMesh 는 패널 Group — `_toggleDoorAtNDC` 가 recursive intersect + 부모 체인으로 매칭. linkGroup 일치하는 모든 패널이 동기 토글. |
+| 미니맵 배지 충돌 식별 | 마우스를 미니맵 위에 호버 — 주변 36 px 안 배지가 64+ px 원에 펼쳐짐 (hover-spread 콜아웃, CL 50276). |
 | 가구 후보 카탈로그 | `FURN_CATALOG` (CSV 후보 + 표준 13 종) |
 | 레이아웃 A/B | `?variant=<name>` + `if (notVariant('...')) ...` 분기 |
 | 벽 위치 이동 | `DESIGN.md §3.7.1` 체크리스트 9 단계 |

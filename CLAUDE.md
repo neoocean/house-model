@@ -12,9 +12,9 @@
 ## 파일 구성
 | 파일 | 역할 |
 |---|---|
-| `index.html` (~2.1 K 줄) | HTML 셸 + UI/CSS + 인라인 JS (씬·`LIGHTING`·`PAL`·`ROOM_PROFILE`·`VARIANT`·레이아웃·헬퍼·텍스처(`TILE_CONFIG`/`WALLPAPER_CONFIG`)·`WALLPAPER_OVERRIDES`·바닥·천장·외벽·내벽·걸레받이·문·라벨·조명·벽지·키친핏·외부문·신발장·카메라·컨트롤·1 키 가구 토글·디버그·애니메이션) |
-| `furniture.js` (~2 K 줄) | `FURN_REGISTRY` + `FURN_META` (28 개 메타) + `FURN_CATALOG` (13 종 템플릿) + 가구 IIFE 28 개 |
-| `minimap.js` (~1.2 K 줄) | 미니맵 IIFE — `ROOMS`/`WALLS`/`DOORS`/`FURNITURE`/`WINDOWS` 데이터 + `WINDOWS_BBOX`/`FURNITURE_BBOX`/`WINDOWS_H`/`WINDOWS_Y0` + 정적 캔버스 캐시 + SHIFT-aim 식별/치수 라벨 + init-time 어셔션 (§M/§P/§U/§CC) + 콘솔 헬퍼 (`_inspect`/`_gap`/`_listRoom`) |
+| `index.html` (~2.3 K 줄) | HTML 셸 + UI/CSS + 인라인 JS (씬·`LIGHTING`·`PAL`·`ROOM_PROFILE`·`VARIANT`·레이아웃·헬퍼·텍스처(`TILE_CONFIG`/`WALLPAPER_CONFIG`)·`WALLPAPER_OVERRIDES`·바닥·천장·외벽·내벽·걸레받이·문(swing/flap/slide)·라벨·조명·벽지·키친핏·외부문·신발장·**영림 3연동 중문**·`OUTLETS`·카메라·컨트롤·1 키 가구 토글·디버그·애니메이션) |
+| `furniture.js` (~2.1 K 줄) | `FURN_REGISTRY` + `FURN_META` (27 개 메타) + `FURN_CATALOG` (13 종 템플릿) + 가구 IIFE 27 개 |
+| `minimap.js` (~1.35 K 줄) | 미니맵 IIFE — `ROOMS`/`WALLS`/`DOORS`/`FURNITURE`/`WINDOWS` 데이터 + `WINDOWS_BBOX`/`FURNITURE_BBOX`/`WINDOWS_H`/`WINDOWS_Y0` + 정적 캔버스 캐시 (타이틀만) + 동적 배지 layer (hover-spread 콜아웃) + SHIFT-aim 식별/치수 라벨 + init-time 어셔션 (§M/§P/§U/§CC) + 콘솔 헬퍼 (`_inspect`/`_gap`/`_listRoom`) |
 | `vendor/three.min.js` | Three.js 0.150.1 UMD (벤더링됨) |
 | `DESIGN.md` | 권위 기술 문서 — 항목 A~T + U/CC/W/Z/Y/AA/V/X/DD/BB 적용 이력, 시행착오, 변경 시 주의점 |
 | `MEMORY.md` | 사람용 프로젝트 기억 (계약·일정·자재 후보 등) |
@@ -35,12 +35,14 @@
 - init-time 어셔션 (실패 시 콘솔 경고): `[M]`/`[P]`/`[U]` 인덱스 일관성, `[CC]` 가구-가구·가구-벽 충돌.
 
 ## 안정 식별자 시스템
-모든 객체는 글로벌 `@TYPE#NN` 번호로 참조한다. 미니맵 배지·SHIFT 조준 라벨·코드 주석·요청 텍스트가 모두 동일 번호 사용:
+모든 객체는 글로벌 `@TYPE#NN` 번호로 참조한다. 미니맵 배지 = ROOMS+DOORS+FURN+i 누적합:
 - `@ROOM#1..15` (방 11 개 + PD/chase/기둥 4 개)
-- `@DOOR#16..46` (31 개)
-- `@FURN#47..74` (28 개)
-- `@WALL#75..117` (43 개, 미니맵 배열만)
-- `@WIN#118..122` (5 개)
+- `@DOOR#16..51` (36 개) — 회전형 31 + 신발장 양문 2 + 영림 3연동 중문 패널 3 (kind:'slide')
+- `@FURN#47..73` (27 개) — `FURN_META[id]` 의 id 키. 안정 식별자.
+- 벽 (43 개, 미니맵 배열만) — 현재 배지 79..121
+- 창문 (5 개) — 현재 배지 122..126
+
+⚠️ **배지 시프트 주의**: DOORS 또는 FURNITURE 추가 시 후속 카테고리 배지 자동 시프트. 코드 anchor `@FURN#47` 은 FURN_META id 47 을 가리키나 미니맵에 표시되는 배지는 "가구 52" (=15+36+0+1, 현재). 옛 CL 의 "벽 96" 같은 표현이 현재 다른 벽일 수 있으므로 가능하면 라벨 텍스트 ("배관 기둥 옆 corridor 벽" 등) 로 grep.
 
 LLM 은 “@FURN#48” 같은 식으로 grep 하면 `FURN_META`, `FURNITURE[]`, IIFE 섹션 헤더 모두에서 정확 매칭.
 
@@ -63,6 +65,8 @@ LLM 은 “@FURN#48” 같은 식으로 grep 하면 `FURN_META`, `FURNITURE[]`, 
 | 방 자재 프로필 조회/변경 | `ROOM_PROFILE['방이름']` |
 | 우드톤 가구 일괄 변경 | `PAL.wood.*` (마이그레이션된 가구만; 미마이그레이션은 IIFE 인라인) |
 | 신규 가구 추가 | `defineFurniture` 권장 + `FURN_META[id]` + `FURNITURE[]` + `FURNITURE_BBOX[]` + (인터랙티브 도어) `_doors.push` + `DOORS[]` |
+| 신규 미닫이 도어 추가 | `_doors.push({kind:'slide', linkGroup:'<id>', pivot, doorMesh, slideAxis, slideOrigin, slideOpen, isOpen})` + `DOORS[]` 동기. doorMesh 는 패널 Group — `_toggleDoorAtNDC` 가 recursive intersect + 부모 체인 매칭. linkGroup 일치하는 모든 패널 동기 토글. animate 루프 `pivot.position[slideAxis]` 보간 (회전형은 `pivot.rotation[axis]`). |
+| 미니맵 배지 식별 | 마우스를 미니맵 위에 hover — 주변 36 px 안 배지가 64+ px 원에 펼쳐져 콜아웃 표시 (밀집 영역 disambiguation, CL 50276). |
 | 가구 후보 카탈로그 조회 | `FURN_CATALOG` (제크리/이안빅/블룸 옷장, LG DIOS 가전, 데스커 책장/책상 등) |
 | 레이아웃 A/B 변형 | `?variant=<name>` URL + `if (notVariant('...')) ...` 분기 |
 | 벽 위치 이동 | `DESIGN.md §3.7.1` 체크리스트 9 단계 (3D 벽 + 벽지 + 걸레받이 + 바닥 + 천장 + 미니맵 ROOMS/WALLS + 인접 가구 + 벽 의존 문) |

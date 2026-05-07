@@ -48,9 +48,9 @@
 
 ```
 model/
-├── index.html        ─ HTML 셸 + UI/CSS + 인라인 JS (씬·재료·바닥·벽·문·조명·카메라·컨트롤·디버그·animate)
-├── furniture.js      ─ FURN_REGISTRY · FURN_META · FURN_CATALOG · 가구 IIFE 28 개
-├── minimap.js        ─ 미니맵 + SHIFT-aim 라벨/치수 + 어셔션 + 콘솔 헬퍼
+├── index.html        ─ HTML 셸 + UI/CSS + 인라인 JS (씬·재료·바닥·벽·문·조명·카메라·컨트롤·디버그·animate, 영림 3연동 중문 IIFE 포함)
+├── furniture.js      ─ FURN_REGISTRY · FURN_META (27 개) · FURN_CATALOG · 가구 IIFE 27 개
+├── minimap.js        ─ 미니맵 + SHIFT-aim 라벨/치수 + hover-spread 콜아웃 + 어셔션 + 콘솔 헬퍼
 ├── vendor/three.min.js  ─ Three.js 0.150.1 (벤더링)
 ├── DESIGN.md         ─ 권위 기술 문서
 ├── CLAUDE.md         ─ Claude Code 자동 컨텍스트
@@ -93,10 +93,12 @@ URL 옵션:
 | 범위 | 카테고리 | 비고 |
 |---|---|---|
 | `@ROOM#1..15` | 방 (11) + PD/chase/기둥 (4) | 미니맵 ROOMS[] |
-| `@DOOR#16..46` | 인터랙티브 도어 (31) | `_doors[]` 푸시 순서와 1:1 |
-| `@FURN#47..74` | 가구 (28) | `FURN_META[id]` |
-| `@WALL#75..117` | 벽 세그먼트 (43) | 미니맵 WALLS[] |
-| `@WIN#118..122` | 창문 (5) | `WINDOWS_BBOX` + `WINDOWS_H/Y0` |
+| `@DOOR#16..51` | 인터랙티브 도어 (36) | `_doors[]` 푸시 순서와 1:1. 회전형(swing/flap) + 미닫이(slide). |
+| `@FURN#47..73` | 가구 (27) | `FURN_META[id]` (id 안정 — DOORS 변동에 따라 미니맵 배지는 시프트되나 ID 자체는 불변) |
+| 벽 (43) | 미니맵 WALLS[] | 배지 번호 = 15+DOORS.length+FURN.length+i+1 = **79..121** (현재) |
+| 창문 (5) | `WINDOWS_BBOX` + `WINDOWS_H/Y0` | 배지 번호 = 위 + 43 = **122..126** (현재) |
+
+⚠️ **배지 시프트 주의**: DOORS 또는 FURNITURE 추가 시 후속 카테고리(가구/벽/창문)의 미니맵 배지 번호가 자동 시프트. 코드 anchor `@TYPE#NN` 은 작성 시점 배지를 동결한 라벨일 수 있음 — `@FURN#47` 은 FURN_META id 47 을 가리키나 현재 미니맵 배지는 "가구 52" (15 + 36 + 0 + 1). 사용자가 옛 CL 의 "벽 96" 같은 표현을 참조할 때 현 배지와 다를 수 있으므로 라벨 텍스트 (예: "신발장", "배관 기둥") 로 grep 권장.
 
 전체 매핑은 `index.html`/`furniture.js`/`minimap.js` 의 코드 안 주석에 부착.
 
@@ -141,12 +143,23 @@ URL 옵션:
 
 **적용 완료 (인프라 + 사례)**:
 - A~T (CL 49693~49720) — 코드 위생 (좌표 단일 원천, FOV 단일화, 메시 캐싱, 파일 분할 등)
-- U (FURN_META 28 개), CC (충돌 검증), W (LIGHTING), Z (콘솔 헬퍼), Y (FURN_CATALOG 13 종)
+- U (FURN_META 27 개), CC (충돌 검증), W (LIGHTING), Z (콘솔 헬퍼), Y (FURN_CATALOG 13 종)
 - AA (BBox 6 요소화), V (ROOM_PROFILE), X (`?variant=`), DD (WALLPAPER_OVERRIDES), BB (벽 변경 체크리스트)
 - 1 키 가구 일괄 토글 (CL 49803)
+- 콘센트 SHIFT-aim 하이라이트 + 미러 자동화 (CL 50236 / 50244 / 50248)
+
+**최근 변경 (CL 50270 ~ 50302)**:
+- **CL 50270** — @FURN#62 주방 상부장(앞) 깊이 0.32→0.69 m: 배관 기둥(@ROOM#14) 앞면과 정렬 (사용자 요청).
+- **CL 50276** — 미니맵 hover-spread 콜아웃: 마우스 호버 시 주변 36 px 안의 배지가 64+ px 원에 펼쳐짐 → 밀집 배지 식별성 향상. 정적 캐시(_staticTopCv) 에서 배지 layer 분리, 매 프레임 `drawNumberOverlay(ctx)` 동적 호출.
+- **CL 50280** — @FURN#50 현관 신발장 폭 1.18→0.98 m (-20 cm): 좌측 수축, 우측 (벽 96 방향, 기둥 @ROOM#15) 부착 유지. 사용자 요청.
+- **CL 50283** — @FURN#50 신발장 도어 측면 4 cm 이격 매움 (몸체 외변 flush 부착): panelW 0.44→0.48, hinge 8.94→cBaseX(8.90)/9.84→cBaseX+cW(9.88), 도어 z 위치 -1 mm 오프셋으로 측판 z-fighting 회피.
+- **CL 50286** — 영림 초슬림 간살 3연동 중문 추가 (정적): 신발장 정면 우측, x=7.8 (현관-주방 경계) 의 1.5 m 개구. 알루미늄 다크 차콜 프레임 + 프로스티드 글래스 + 세로 간살 5 살/패널.
+- **CL 50289** — 중문 인터랙티브 미닫이 시스템: `_doors[]` 에 `kind:'slide'` + `linkGroup:'jungmun'` 도입. 회전형(rotate) 동작 분기 보존. 클릭 시 3 패널 동기 토글, 북쪽 +z 적층. `_toggleDoorAtNDC` recursive intersect + 부모 체인 매칭. DOORS.length 33→36 으로 후속 카테고리 배지 +3 시프트.
+- **CL 50296** — 중문 위치 신발장 좌측 부착: x=7.8→8.855 (xJM, 신발장 좌면 4 mm 시각 갭), z=2.7~4.2→2.76~4.14 (1.50 m→1.38 m, 침실1·창고 벽 내면 사이로 단축), panelW 0.50→0.46.
+- **CL 50302** — 현관 녹색 영역(mEntry 슬라브) 을 중문 동면 (x=8.896) 까지로 단축: 동측 (방화문 측) 에서 중문까지만 녹색 보이고, 서측 (주방·식당 측) 에서 중문 base 에 녹색 안 보임. buildTileFloor 보충 + 라이저 위치 갱신.
 
 **후속 후보** (요청 시 적용):
-- 가구 28 개 K 마이그레이션 완성 (현재 3 점 파일럿 → 전체)
+- 가구 27 개 K 마이그레이션 완성 (현재 3 점 파일럿 → 전체)
 - 벽면 부착물(@FURN#54/56/57) BBox y 명시 (현재 4-요소 + 휴리스틱)
 - 인라인 머티리얼 → PAL 추가 마이그레이션
 - WALLPAPER_OVERRIDES 의 빌더 측 적용 (현재 인프라만)
