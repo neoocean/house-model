@@ -460,6 +460,9 @@ function buildTileFloor(){
   quad(xKit, zT,      xBR,     zBath );  // 주방식당 + 연결통로1
   quad(xBR,  zM1,     xBR+DW,  zM2   );  // 침실1 ↔ 창고 문 사이 통로
   quad(xBR+DW, zM2-0.20, xHall, zM2 );  // 신발공간 남측 20cm 축소 보충 타일 (문 44 방향)
+  // 중문 부착 (CL 50296) 으로 신발공간 서측 단축 — x=8.7~8.896 보충 타일.
+  // 8.896 = 중문 동측 패널 동면 (xJM=8.855 + trackOffset 0.030 + panelD/2 0.011).
+  quad(xBR+DW, zM1, 8.896, zM2-0.20);    // 신발공간 서측 보충 타일 (중문 동면까지)
   quad(xBR,  zT,      xHall,   zM1   );  // 침실 1
   quad(xBal, zLR2,    xKit,    zB    );  // 침실 2
   quad(xBR,  zM2,     xHall,   zB    );  // 창고
@@ -486,17 +489,17 @@ function buildTileFloor(){
 ===================================================================== */
 buildTileFloor();                                      // 타일 전 구역 (단일 메시, 경계 없는 연속 UV)
 slab(mBal,   xL,      zLR2,   xBal,  zB        );    // 발코니 아래쪽
-slab(mEntry, xBR+DW,  zM1,    xHall, zM2-0.20, -0.05);    // 현관 신발공간 (5cm 낮음, 문 44 방향 -20cm 축소)
+slab(mEntry, 8.896,   zM1,    xHall, zM2-0.20, -0.05);    // 현관 신발공간 (5cm 낮음, 문 44 방향 -20cm 축소, 서측은 중문 동면 8.896 까지)
 slab(mBal,   xHall,   zT,     xR,    zM2, -0.05);    // 복도 (5cm 낮음, 벽 82 이동에 따라 z=4.2까지)
 slab(mBath,  xKit,    zBath,  xBR,   zB        );    // 욕실
 
 // ── 단차 라이저: 6번 방(연결통로2) 내부 5cm 높이차 채움 ──────────
 //    타일(y=0.05) ↔ 현관 신발공간(y=0) 경계의 수직 빈 공간을 벽 재질로 막음.
 //    높이를 FT보다 살짝 키워(0.054) 양 끝 z-fighting 방지.
-// 1) x=8.7 라이저 (z=2.7~4.0, 신발공간 서측 경계, 줄어든 길이)
-B(0.01, FT+0.004, zM2-0.20-zM1, mWall, xBR+DW, FT/2, (zM1+zM2-0.20)/2);
-// 2) z=4.0 라이저 (신발공간 남측 경계, 신발공간 축소로 인한 신규 단차)
-B(xHall-(xBR+DW), FT+0.004, 0.01, mWall, (xBR+DW+xHall)/2, FT/2, zM2-0.20);
+// 1) x=8.896 라이저 (z=2.7~4.0, 신발공간 서측 경계 — 중문 동면 위치)
+B(0.01, FT+0.004, zM2-0.20-zM1, mWall, 8.896, FT/2, (zM1+zM2-0.20)/2);
+// 2) z=4.0 라이저 (신발공간 북측 경계, 신발공간 축소로 인한 신규 단차)
+B(xHall-8.896, FT+0.004, 0.01, mWall, (8.896+xHall)/2, FT/2, zM2-0.20);
 
 /* =====================================================================
    CEILINGS  — 1인칭 모드에서만 표시 (animate 루프에서 mCeil.visible 토글)
