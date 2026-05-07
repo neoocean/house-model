@@ -78,6 +78,15 @@
 - 사용자 환경에 따라 GitHub 직접 작업 또는 별도 비공개 VCS 에서 미러 가능.
 - 새 머신에서 시작할 때: 저장소 동기 후 작업.
 
+### Perforce → GitHub 자동 미러
+P4 워크스페이스에서 작업 시 **매 `p4 submit` 직후** 다음 호출:
+
+```bash
+~/bin/mirror-to-github.sh
+```
+
+스크립트가 rsync 미러 + git-only 파일 복구 + 민감 키워드 audit (`~/.house-model-sensitive-keywords.txt`) + commit (P4 CL 번호·설명 자동 부기) + push 수행. 키워드 차단 시 exit 2 — 수동 검토 필요. 자세한 정책은 [CLAUDE.md](./CLAUDE.md) "Perforce → GitHub 자동 미러 워크플로우" 참조.
+
 ## 외부 자료
 원본 평면도 이미지·계약 문서·실측 사진 등 식별 가능한 자료는 본 repo **외부** 비공개 작업 디렉토리에만 보관. 본 repo (public) 에 파일명·경로·내용 일체 노출 금지. 상세 정책: [PRIVACY.md](./PRIVACY.md).
 
