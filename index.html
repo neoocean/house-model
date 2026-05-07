@@ -1643,6 +1643,132 @@ LIGHTING.rooms.forEach(function(r){
 })();
 
 /* =====================================================================
+   영림 초슬림 간살 3연동 중문 — 연결통로2 ↔ 주방·식당 경계
+   ----------------------------------------------------------------------
+   사용자 요청: 신발장 정면 우측 (cabinet-relative -x 방향, x=7.8 라인)
+   의 1.5m 빈 공간 (z=2.7~4.2) 에 3 패널 슬라이딩 중문 설치.
+   현관-거실/주방 사이 vestibule door — 한국 아파트 표준 추가.
+
+   레이아웃 (닫힘 상태)
+     · 트랙 x: 7.770 / 7.800 / 7.830 (3 트랙, ±15mm 간격)
+     · 패널 1 (남쪽, x=7.770): z=2.70~3.20, 중심 z=2.95
+     · 패널 2 (중앙, x=7.800): z=3.20~3.70, 중심 z=3.45
+     · 패널 3 (북쪽, x=7.830): z=3.70~4.20, 중심 z=3.95
+     · 각 패널 0.50 m × 2.30 m × 22 mm
+
+   영림 초슬림 사양
+     · 알루미늄 프레임 — 다크 차콜 (#2a2a2c), 좌우 30mm / 상하 40mm 폭
+     · 글래스 — 프로스티드 (#eaeef2, opacity 0.32, double-side)
+     · 간살 — 다크 (#1d1d1f), 패널당 세로 5 살, 8 × 8 mm 단면, 양면 부착
+     · 상부 레일 — 천장 직하 박스 100 × 60 mm (3 트랙 통합 표현)
+     · 하부 가이드 — 바닥 라인 40 × 5 mm
+
+   현재 상태: 닫힘 (전체 1.5m 개구 가림). 정적 — 슬라이딩 애니메이션
+   미구현. 추후 _doors[]-style 인터랙션 추가 가능.
+   인접 입구와 미충돌:
+     · 침실1 입구 (z=2.7, x=7.8~8.7): 중문 z 범위 끝 z=2.7 — 단일 점 접촉.
+     · 창고 입구 (z=4.2, x=7.8~8.7, @DOOR#17): 중문 z 범위 끝 z=4.2 — 단일 점.
+===================================================================== */
+(function(){
+  var trackXSouth = xBR - 0.030;        // 7.770 (남쪽 트랙)
+  var trackXMid   = xBR;                 // 7.800 (중앙)
+  var trackXNorth = xBR + 0.030;        // 7.830 (북쪽)
+  var openZ0  = zM1;                     // 2.70 (개구 시작)
+  var openZ1  = zM2;                     // 4.20 (개구 끝)
+  var doorH   = CH - 0.10;               // 2.30 (천장 -10cm 레일 공간)
+  var panelW  = (openZ1 - openZ0) / 3;   // 0.500
+  var panelD  = 0.022;                    // 22mm 패널 두께
+  var sideFW  = 0.030;                    // 30mm 좌·우 사이드 프레임
+  var topFW   = 0.040;                    // 40mm 상·하 프레임
+  var ganBars = 5;                        // 패널당 세로 간살 5
+  var ganW    = 0.008;                    // 8mm 간살 단면
+
+  // 재료 — 영림 초슬림 사양
+  var jmFrameMat = new THREE.MeshPhongMaterial({
+    color:0x2a2a2c, specular:0x3a3a3c, shininess:70
+  });
+  var jmGlassMat = new THREE.MeshPhongMaterial({
+    color:0xeaeef2, transparent:true, opacity:0.32,
+    side:THREE.DoubleSide, shininess:90
+  });
+  var jmGanMat = new THREE.MeshPhongMaterial({
+    color:0x1d1d1f, shininess:30
+  });
+  var jmRailMat = new THREE.MeshLambertMaterial({color:0x1a1a1c});
+  var jmHandleMat = new THREE.MeshPhongMaterial({
+    color:0x4a4a4c, shininess:80
+  });
+
+  function makeJungMunPanel(panelX, centerZ){
+    var g = new THREE.Group();
+    g.position.set(panelX, FT + doorH/2, centerZ);
+
+    function add(w, h, d, mat, x, y, z){
+      var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+      m.position.set(x, y, z);
+      m.castShadow = true; m.receiveShadow = true;
+      g.add(m);
+      return m;
+    }
+
+    var glassH = doorH - topFW*2;
+    var glassWid = panelW - sideFW*2;
+
+    // 글래스 본체 (프레임 안에 inset)
+    add(panelD - 0.004, glassH, glassWid, jmGlassMat, 0, 0, 0);
+
+    // 프레임 4면 (상/하/좌/우) — 알루미늄 슬림 프로파일
+    add(panelD, topFW,  panelW,  jmFrameMat, 0,  doorH/2 - topFW/2, 0);  // 상
+    add(panelD, topFW,  panelW,  jmFrameMat, 0, -doorH/2 + topFW/2, 0);  // 하
+    add(panelD, glassH, sideFW,  jmFrameMat, 0, 0, -panelW/2 + sideFW/2);// 좌(z 작은 쪽)
+    add(panelD, glassH, sideFW,  jmFrameMat, 0, 0,  panelW/2 - sideFW/2);// 우(z 큰 쪽)
+
+    // 간살 — 글래스 양면(전·후) 에 세로 살 ganBars 개씩
+    var spacing = glassWid / (ganBars + 1);
+    for (var i = 1; i <= ganBars; i++){
+      var gz = -glassWid/2 + i * spacing;
+      add(ganW, glassH, ganW, jmGanMat,  panelD/2 - ganW/2, 0, gz);  // 전면
+      add(ganW, glassH, ganW, jmGanMat, -panelD/2 + ganW/2, 0, gz);  // 후면
+    }
+
+    // 손잡이 — 슬라이딩 도어 수직 스트립 (자유단 = 우측, z 큰 쪽)
+    var handleH = 0.18;
+    add(panelD - 0.002, handleH, 0.020, jmHandleMat,
+        0, 0, panelW/2 - sideFW - 0.018);
+
+    scene.add(g);
+    return g;
+  }
+
+  // 3 패널 — 닫힘 위치
+  makeJungMunPanel(trackXSouth, openZ0 + panelW * 0.5);  // 패널 1: 남쪽 트랙, z=2.95
+  makeJungMunPanel(trackXMid,   openZ0 + panelW * 1.5);  // 패널 2: 중앙 트랙, z=3.45
+  makeJungMunPanel(trackXNorth, openZ0 + panelW * 2.5);  // 패널 3: 북쪽 트랙, z=3.95
+
+  // 상부 레일 (천장 직하, 3 트랙 통합 박스)
+  var railH = 0.06;
+  var railThk = 0.10;
+  var railLen = openZ1 - openZ0;
+  var topRail = new THREE.Mesh(
+    new THREE.BoxGeometry(railThk, railH, railLen),
+    jmRailMat
+  );
+  topRail.position.set(xBR, FT + doorH + railH/2, (openZ0 + openZ1) / 2);
+  topRail.castShadow = true; topRail.receiveShadow = true;
+  scene.add(topRail);
+
+  // 하부 가이드 (바닥 얇은 라인)
+  var guideH = 0.005;
+  var bottomGuide = new THREE.Mesh(
+    new THREE.BoxGeometry(0.04, guideH, railLen),
+    jmRailMat
+  );
+  bottomGuide.position.set(xBR, FT + guideH/2, (openZ0 + openZ1) / 2);
+  bottomGuide.receiveShadow = true;
+  scene.add(bottomGuide);
+})();
+
+/* =====================================================================
    ELECTRICAL OUTLETS — 벽 콘센트 (데이터 중심 정의)
    ----------------------------------------------------------------------
    OUTLETS 배열에 위치/면방향/구수를 정의하면 buildOutlet() 가 일괄
