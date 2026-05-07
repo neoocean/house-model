@@ -1582,14 +1582,17 @@ LIGHTING.rooms.forEach(function(r){
    _doors[15] = 신발장 좌 (문 31), _doors[16] = 신발장 우 (문 32)
 ===================================================================== */
 (function(){
-  var cBaseX = xBR + DW;            // 8.70
+  // cBaseX 사용자 요청: 좌우 폭 1.18→0.98 수축, 벽 96 쪽(우측 기둥) 부착
+  // 유지 → 좌측 시작 +20cm 시프트 (8.70→8.90). 신발장 IIFE (furniture.js
+  // @FURN#50) 와 동기화 필수.
+  var cBaseX = xBR + DW + 0.20;     // 8.90 (좌측 시작)
   var cD     = 0.37;
   var wallZ  = zM2 - WT/2;          // 4.14 (뒷벽 내면)
   var frontZ = wallZ - cD;          // 3.77 (캐비닛 전면)
   var cH     = CH;
-  var cW     = 1.18;                // 신발장 가로 (좌측 2칸 합계)
+  var cW     = 0.98;                // 신발장 가로 (좌측 2칸 합계, 이전 1.18)
 
-  var panelW   = 0.54;              // 단일 패널 폭
+  var panelW   = 0.44;              // 단일 패널 폭 (이전 0.54, -10cm 각)
   var panelH   = cH - 0.06;        // 2.34
   var panelCY  = cH / 2;            // 1.20 (패널 y 중심)
   var DT       = 0.020;             // 패널 두께 2cm
@@ -1627,9 +1630,9 @@ LIGHTING.rooms.forEach(function(r){
     _doors.push({pivot:pivot, doorMesh:panel, openRY:openRY, isOpen:false});
   }
 
-  // 문 31 — 신발장 좌측 도어, 힌지 x=8.74 (좌측 가장자리)
-  makeShoeCabDoor(8.74, 'left');
-  // 문 32 — 신발장 우측 도어, 힌지 x=9.84 (우측 가장자리)
+  // 문 31 — 신발장 좌측 도어, 힌지 x=8.94 (좌측 가장자리, 이전 8.74 +20cm)
+  makeShoeCabDoor(8.94, 'left');
+  // 문 32 — 신발장 우측 도어, 힌지 x=9.84 (우측 가장자리, 변동 없음)
   makeShoeCabDoor(9.84, 'right');
 })();
 

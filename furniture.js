@@ -34,7 +34,7 @@ const FURN_META = {
   47: { id:47, name:'드럼세탁기',         room:'발코니',     pos:{cx:0.50,  cz:6.09 }, size:{W:0.90, D:0.90, H:1.275}, bbox:[0.05,  5.64,  0.95,  6.54],            source:'@ESTIMATE 실제 치수 ×1.5' },
   48: { id:48, name:'침실2 침대',         room:'침실 2',     pos:{cx:3.30,  cz:5.52 }, size:{W:1.65, D:2.05, H:0.60 }, bbox:[2.475, 4.49,  4.125, 6.54],            source:'@ESTIMATE 퀸 사이즈, 헤드보드 0.55' },
   49: { id:49, name:'침실1 책상',         room:'침실 1',     pos:{cx:10.04, cz:1.35 }, size:{W:0.80, D:1.80, H:0.74 }, bbox:[9.64,  0.45,  10.44, 2.25],            source:'@ESTIMATE 표준 책상' },
-  50: { id:50, name:'현관 신발장',        room:'연결통로 2', pos:{cx:9.57,  cz:3.77 }, size:{W:1.18, D:0.37, H:2.40 }, bbox:[8.7,   3.77,  9.88,  4.14],            source:'@ESTIMATE 천장까지' },
+  50: { id:50, name:'현관 신발장',        room:'연결통로 2', pos:{cx:9.39,  cz:3.955}, size:{W:0.98, D:0.37, H:2.40 }, bbox:[8.9,   3.77,  9.88,  4.14],            source:'@USER 폭 1.18→0.98 — 좌측 20cm 수축, 우측 (벽 96 쪽, 기둥 @ROOM#15 부착) 유지' },
   51: { id:51, name:'주방 하부장(앞)',    room:'주방·식당',  pos:{cx:6.54,  cz:0.36 }, size:{W:2.40, D:0.60, H:1.00 }, bbox:[5.34,  0.06,  7.74,  0.66, 0,    1.0 ] },
   52: { id:52, name:'주방 하부장(우)',    room:'주방·식당',  pos:{cx:7.44,  cz:1.65 }, size:{W:0.60, D:1.98, H:1.00 }, bbox:[7.14,  0.66,  7.74,  2.64, 0,    1.0 ] },
   53: { id:53, name:'욕실 변기',          room:'욕실',       pos:{cx:5.55,  cz:5.97 }, size:{W:0.38, D:0.595,H:0.78 }, bbox:[5.36,  5.795, 5.74,  6.39, 0,    0.78] },
@@ -977,7 +977,8 @@ defineFurniture({
 // @FURN#50 현관 신발장
 // ── 현관 신발장 (녹색 바닥, 좌측 2칸) + 우측 1칸 기둥 ──
 // 녹색 현관: x=8.7~10.5, z=2.7~4.2
-// 신발장 가로: 창고 문 끝(x=8.7)에서 1.18m → x=8.7~9.88 (2칸)
+// 신발장 가로: 사용자 요청 — 폭 1.18→0.98 (좌측 20cm 수축),
+//              우측은 기둥 @ROOM#15 부착 유지 → x=8.90~9.88 (2칸)
 // 우측 기둥(방 15): x=9.88~10.44, 방 14 참고 (mWall, 전고 솔리드)
 // 세로: 0.37m (문 끝 z=3.75 ~ 벽 내면 z=4.14 - 2cm)
 // 높이: 천장까지 CH=2.4m
@@ -985,12 +986,15 @@ defineFurniture({
   var cD     = 0.37;
   var cH     = CH;
   var wallZ  = zM2 - WT/2;                  // 4.14 (뒷벽 내면)
-  var cBaseX = xBR + DW;                    // 8.70 (좌측 시작)
+  // cBaseX 를 xBR+DW (8.70) 에서 +20cm 시프트 → 8.90.
+  // 사용자 요청: 좌우 폭 -20cm, 벽 96 쪽 (우측 기둥 @ROOM#15) 부착 유지.
+  // 결과: 좌측에 20cm 여유 공간 (창고 문 끝 ↔ 신발장 좌면).
+  var cBaseX = xBR + DW + 0.20;             // 8.90 (좌측 시작 — 좌측 20cm 수축)
   var cRightX= xHall - WT/2;                // 10.44 (우측 끝, 복도벽 내면)
 
   // === 신발장 (좌측 2칸) ===
-  var cW   = 1.18;                          // panelW 0.56 × 2 + 간격 0.06 = 1.18m
-  var cx   = cBaseX + cW/2;                 // 9.29
+  var cW   = 0.98;                          // panelW 0.46 × 2 + 간격 0.06 = 0.98m (이전 1.18)
+  var cx   = cBaseX + cW/2;                 // 9.39 (이전 9.29)
   var cy   = cH / 2;
   var cz   = wallZ - cD / 2;                 // 3.955 (z 중심)
 
@@ -1035,16 +1039,19 @@ defineFurniture({
   // 선반 si의 위쪽 y (선반 두께 14mm 위, 신발 바닥 = 선반 상면)
   function shelfTopY(si){ return FT + (si/(nShelves+1))*cH + 0.014/2; }
   var sZ = cz - 0.04;                                // 신발 z 중심 (선반 안쪽 약간 앞)
+  // 신발 오프셋 — 좌측은 cBaseX+0.32 (32cm from left), 우측은 cBaseX+0.66
+  // (=cW-0.32, 32cm from right) — 좌우 대칭. 폭 수축으로 우측 0.85/0.86 →
+  // 0.66 으로 갱신 (이전 값은 새 cW=0.98 우측 패널 인셋 클립).
   // 0단(바닥) — 검정 + 흰색 운동화
   shoePair(mShoeBlk, cBaseX + 0.32, FT + pt/2, sZ);
-  shoePair(mShoeWht, cBaseX + 0.86, FT + pt/2, sZ);
-  // 1단 위 — 갈색 구두
-  shoePair(mShoeBrn, cBaseX + 0.50, shelfTopY(1), sZ);
-  // 2단 위 — 빨강 운동화
-  shoePair(mShoeRed, cBaseX + 0.85, shelfTopY(2), sZ);
+  shoePair(mShoeWht, cBaseX + 0.66, FT + pt/2, sZ);
+  // 1단 위 — 갈색 구두 (중앙)
+  shoePair(mShoeBrn, cBaseX + 0.49, shelfTopY(1), sZ);
+  // 2단 위 — 빨강 운동화 (우측)
+  shoePair(mShoeRed, cBaseX + 0.66, shelfTopY(2), sZ);
   // 3단 위 — 검정 + 갈색
   shoePair(mShoeBlk, cBaseX + 0.32, shelfTopY(3), sZ);
-  shoePair(mShoeBrn, cBaseX + 0.86, shelfTopY(3), sZ);
+  shoePair(mShoeBrn, cBaseX + 0.66, shelfTopY(3), sZ);
 
   // 4) 양문형 인터랙티브 도어 — 코드 후반부 IIFE에서 등록
   //    문 36 (신발장 좌) + 문 37 (신발장 우), _doors[20], _doors[21]
