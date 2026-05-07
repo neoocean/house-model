@@ -1592,7 +1592,10 @@ LIGHTING.rooms.forEach(function(r){
   var cH     = CH;
   var cW     = 0.98;                // 신발장 가로 (좌측 2칸 합계, 이전 1.18)
 
-  var panelW   = 0.44;              // 단일 패널 폭 (이전 0.54, -10cm 각)
+  // 도어를 몸체 양 외변 (cBaseX, cBaseX+cW) 에 flush 부착 — 사용자 요청
+  // (이전 좌·우 4cm 측면 이격 매움). 중앙 2cm 만 도어 사이 reveal 로 유지.
+  // panelW = (cW - centerGap)/2 = (0.98 - 0.02)/2 = 0.48 (이전 0.44).
+  var panelW   = 0.48;              // 단일 패널 폭 (이전 0.44, +4cm — flush 부착용)
   var panelH   = cH - 0.06;        // 2.34
   var panelCY  = cH / 2;            // 1.20 (패널 y 중심)
   var DT       = 0.020;             // 패널 두께 2cm
@@ -1605,12 +1608,15 @@ LIGHTING.rooms.forEach(function(r){
     pivot.position.set(hingeX, 0, frontZ);
     scene.add(pivot);
     var dlx = (hingeSide === 'left') ? panelW/2 : -panelW/2;
-    // 패널: 두께가 -z 방향으로 (캐비닛 앞쪽으로) 돌출
+    // 패널: 두께가 -z 방향으로 (캐비닛 앞쪽으로) 돌출.
+    // z=-DT/2-0.001: 1mm 더 앞쪽 (cBaseX flush 부착으로 도어와 측판이
+    // 같은 x 범위에 겹쳐 z-fighting 발생 — 측판 front face 3.770 보다
+    // 도어 back face 가 1mm 앞에 있도록).
     var panel = new THREE.Mesh(
       new THREE.BoxGeometry(panelW, panelH, DT),
       doorMat
     );
-    panel.position.set(dlx, panelCY, -DT/2);
+    panel.position.set(dlx, panelCY, -DT/2 - 0.001);
     panel.castShadow = true;
     panel.receiveShadow = true;
     pivot.add(panel);
@@ -1621,7 +1627,7 @@ LIGHTING.rooms.forEach(function(r){
       new THREE.BoxGeometry(0.03, 0.12, 0.03),
       handleMat
     );
-    handle.position.set(hLocalX, panelCY, -DT - 0.015);
+    handle.position.set(hLocalX, panelCY, -DT - 0.015 - 0.001);
     handle.castShadow = true;
     pivot.add(handle);
 
@@ -1630,10 +1636,10 @@ LIGHTING.rooms.forEach(function(r){
     _doors.push({pivot:pivot, doorMesh:panel, openRY:openRY, isOpen:false});
   }
 
-  // 문 31 — 신발장 좌측 도어, 힌지 x=8.94 (좌측 가장자리, 이전 8.74 +20cm)
-  makeShoeCabDoor(8.94, 'left');
-  // 문 32 — 신발장 우측 도어, 힌지 x=9.84 (우측 가장자리, 변동 없음)
-  makeShoeCabDoor(9.84, 'right');
+  // 문 31 — 신발장 좌측 도어, 힌지 x=8.90 (cBaseX, 몸체 좌 외변 flush)
+  makeShoeCabDoor(cBaseX, 'left');           // 8.90 (이전 8.94, -4cm)
+  // 문 32 — 신발장 우측 도어, 힌지 x=9.88 (cBaseX+cW, 몸체 우 외변 flush)
+  makeShoeCabDoor(cBaseX + cW, 'right');     // 9.88 (이전 9.84, +4cm)
 })();
 
 /* =====================================================================
