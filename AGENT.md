@@ -54,6 +54,7 @@
 | 가구 X 의 치수 변경 | `FURN_META[id].size` + (마이그레이션된 47/48/49 는) `defineFurniture` spec; 미마이그레이션은 IIFE 내부 const + `FURNITURE_BBOX`도 동기 |
 | 가구 위치 이동 | `FURN_META[id].pos` + `FURNITURE[idx]` (xz) + 빌더 |
 | 조명 톤·강도 | `LIGHTING.rooms[i]` 한 곳 |
+| 천장 조명 마커 위치 | `CEILING_LIGHTS[i]` 한 곳 (시각 전용 fixture, 발광 X — 위치 검토용). kind: `flush`/`panel`/`wet`. |
 | 바닥 타일 톤 | `TILE_CONFIG.baseColors` |
 | 벽지 톤 (전체) | `WALLPAPER_CONFIG.baseColor` |
 | 벽지 (방별) | `WALLPAPER_OVERRIDES['방이름']` + 빌더 측 적용 |

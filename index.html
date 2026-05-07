@@ -517,6 +517,62 @@ slab(mCeil, xBR,   zM2,   xHall, zB   , CH);  // 창고
 slab(mCeil, xHall, zT,    xR,    zM2  , CH);  // 복도 (z=0~4.2)
 
 /* =====================================================================
+   CEILING_LIGHTS — 천장 조명 위치 마커 (시각 전용, 발광 X)
+   ----------------------------------------------------------------------
+   사용자 요청: 각 공간 천장에 조명 위치 표시. 실제 PointLight 는 별도
+   `LIGHTING.rooms` 가 담당 — 본 시스템은 fixture 메시 마커만.
+
+   각 항목: { name, x, z, kind, size? }
+     kind = 'flush'  → 원형 다운라이트 (기본 0.30 m 지름)
+            'panel'  → 사각 LED 패널 (기본 0.30 m, size 권장 0.60)
+            'wet'    → 방수 매립 (욕실/발코니 — 푸른 톤)
+     size 미지정 시 0.30 m.
+
+   배치: 각 방 1 개 (총 11). 위치는 룸 중심 (ROOMS[i] bbox 의 평균).
+   주방·식당 (R5) 는 4.8 m 길이라 앞쪽 (z=2.4) 에 1 개 — 추후 분할
+   필요 시 'pendant' 종류 추가 가능.
+===================================================================== */
+const CEILING_LIGHTS = [
+  { name:'거실확장',     x:0.75,  z:2.20, kind:'flush' },
+  { name:'창고2',        x:1.05,  z:0.45, kind:'flush', size:0.20 },
+  { name:'발코니',       x:0.75,  z:5.05, kind:'wet'   },
+  { name:'거실',         x:3.30,  z:1.75, kind:'panel', size:0.60 },
+  { name:'주방·식당',    x:6.45,  z:2.40, kind:'panel', size:0.60 },
+  { name:'연결통로 2',   x:9.15,  z:3.45, kind:'flush' },
+  { name:'침실 1',       x:9.15,  z:1.35, kind:'flush' },
+  { name:'복도',         x:11.25, z:2.10, kind:'flush' },
+  { name:'침실 2',       x:3.30,  z:5.05, kind:'flush' },
+  { name:'욕실',         x:6.45,  z:5.70, kind:'wet'   },
+  { name:'창고',         x:9.15,  z:5.40, kind:'flush', size:0.20 },
+];
+
+function buildCeilingLight(spec){
+  var size = spec.size || 0.30;
+  var t    = (spec.kind === 'panel') ? 0.035 : 0.025;
+  var yC   = CH - t/2;   // 천장 underside (y=2.4) 에 fixture top 정렬
+
+  // 색상 — kind 별 미세한 톤
+  var color =
+    (spec.kind === 'wet')   ? 0xe8f0f5 :   // 푸른 화이트 (방수)
+    (spec.kind === 'panel') ? 0xfafaf2 :   // 따뜻한 화이트 (패널)
+                              0xf8f8f8;    // 중립 화이트 (flush)
+
+  var mat = new THREE.MeshLambertMaterial({
+    color: color, emissive: 0x101010      // 미세 발광 톤 — 어두운 천장에서 식별성 ↑
+  });
+
+  var geo = (spec.kind === 'panel')
+    ? new THREE.BoxGeometry(size, t, size)
+    : new THREE.CylinderGeometry(size/2, size/2, t, 24);
+
+  var m = new THREE.Mesh(geo, mat);
+  m.position.set(spec.x, yC, spec.z);
+  scene.add(m);
+}
+
+CEILING_LIGHTS.forEach(buildCeilingLight);
+
+/* =====================================================================
    OUTER WALLS
 ===================================================================== */
 // ── 앞면 z=0 ─ 불투명 외벽 (창문·유리 없음) ──

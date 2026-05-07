@@ -41,7 +41,14 @@
 - 지오메트리는 박스 프리미티브 헬퍼(`B`, `slab`, `HW`, `VW`, `HWD`, `VWD`)를 기반으로 합성. `HWD`/`VWD` 는 문 개구부를 위해 좌·우 벽 + 상부 인방을 자동 분할.
 - 타일 바닥은 `buildTileFloor()` 가 BufferGeometry 단일 메시로 생성, world-coord UV 매핑(`uv = (x/TW, z/TW)`)으로 어떤 방향으로도 이음새 없는 무한 반복.
 
-### 2.3. 조명 (어둡게 튜닝됨)
+### 2.3. 조명 (어둡게 튜닝됨) + 천장 조명 마커
+
+**천장 조명 위치 마커 (`CEILING_LIGHTS`, CL 50308+)** — 사용자 요청에 따라 각 방 천장에 시각 전용 fixture 메시 (발광 X). `LIGHTING.rooms` 의 PointLight 와는 별개. 11 개 (각 방 1 개), `kind` 별 외관:
+- `flush` (원형 다운라이트, 30 cm 기본): 거실확장·창고2·연결통로2·침실1·침실2·복도·창고
+- `panel` (사각 LED, 60 cm): 거실·주방·식당
+- `wet` (방수 매립, 푸른 톤): 욕실·발코니
+
+위치는 룸 bbox 중심 — 룸 중심에 fixture 가 표시됨. 배치 검토 후 위치 조정은 `CEILING_LIGHTS` 배열 한 곳 수정. y 위치는 `CH - t/2` 로 fixture 상면이 천장 underside (y=2.40) 에 정렬, 두께 25~35 mm 만큼 아래로 돌출.
 - `AmbientLight 0xfff0e0` 강도 **0.18** (구버전 0.5 → 텍스처 흰색 클리핑 방지).
 - `DirectionalLight 0xffeedd` 강도 **0.28** (그림자 방향성 역할만, shadow map 2048², 절두체 `±18 × ±14`).
 - 방마다 `PointLight` (강도 0.30~0.55, 욕실은 청백색 0xe8f5ff). 광원 위치에 작은 `0xffffbb` 구체로 시각화.
