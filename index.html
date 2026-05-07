@@ -1741,9 +1741,31 @@ LIGHTING.rooms.forEach(function(r){
   }
 
   // 3 패널 — 닫힘 위치
-  makeJungMunPanel(trackXSouth, openZ0 + panelW * 0.5);  // 패널 1: 남쪽 트랙, z=2.95
-  makeJungMunPanel(trackXMid,   openZ0 + panelW * 1.5);  // 패널 2: 중앙 트랙, z=3.45
-  makeJungMunPanel(trackXNorth, openZ0 + panelW * 2.5);  // 패널 3: 북쪽 트랙, z=3.95
+  var jmP1 = makeJungMunPanel(trackXSouth, openZ0 + panelW * 0.5);  // 남쪽, z=2.95
+  var jmP2 = makeJungMunPanel(trackXMid,   openZ0 + panelW * 1.5);  // 중앙, z=3.45
+  var jmP3 = makeJungMunPanel(trackXNorth, openZ0 + panelW * 2.5);  // 북쪽, z=3.95
+
+  // 인터랙티브 미닫이 등록 — 3연동 (linkGroup='jungmun', 어느 패널 클릭해도 모두 동작)
+  // 열림 방향: 북쪽 적층 — 패널 1 (+1.0m), 패널 2 (+0.5m), 패널 3 (정지) →
+  //          모두 z=3.7~4.2 영역에 적층, 남쪽 z=2.7~3.7 (1m) 통로 개방.
+  _doors.push({
+    kind:'slide', linkGroup:'jungmun',
+    pivot: jmP1, doorMesh: jmP1, slideAxis:'z',
+    slideOrigin: openZ0 + panelW * 0.5, slideOpen: panelW * 2.0,   // +1.0m 북쪽
+    isOpen: false
+  });
+  _doors.push({
+    kind:'slide', linkGroup:'jungmun',
+    pivot: jmP2, doorMesh: jmP2, slideAxis:'z',
+    slideOrigin: openZ0 + panelW * 1.5, slideOpen: panelW * 1.0,   // +0.5m 북쪽
+    isOpen: false
+  });
+  _doors.push({
+    kind:'slide', linkGroup:'jungmun',
+    pivot: jmP3, doorMesh: jmP3, slideAxis:'z',
+    slideOrigin: openZ0 + panelW * 2.5, slideOpen: 0,              // 정지 (적층 기준)
+    isOpen: false
+  });
 
   // 상부 레일 (천장 직하, 3 트랙 통합 박스)
   var railH = 0.06;
@@ -1949,20 +1971,41 @@ document.addEventListener('keydown', function(e) {
 document.addEventListener('keyup', function(e) { keys[e.code] = false; });
 
 // 문 토글 공통 함수 (NDC 좌표 기준 레이캐스트)
+//   - 회전형(swing): doorMesh = 단일 패널 메시.
+//   - 미닫이(slide): doorMesh = THREE.Group (글래스+프레임+간살+손잡이 묶음).
+//     intersectObjects 가 recursive=true 로 그룹 안 메시까지 검사 후,
+//     hit.object 의 부모 체인을 거슬러 올라가 doorMesh 와 일치하는 항목 찾음.
+//   - linkGroup: 같은 그룹 ID 를 공유하면 한 패널 클릭 시 모두 함께 토글
+//     (영림 3연동 중문 등).
 function _toggleDoorAtNDC(ndcX, ndcY){
   var ray = new THREE.Raycaster();
   ray.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
   var doorMeshes = [];
   for (var _di = 0; _di < _doors.length; _di++) doorMeshes.push(_doors[_di].doorMesh);
-  var hits = ray.intersectObjects(doorMeshes);
-  if (hits.length > 0) {
-    var hitMesh = hits[0].object;
-    for (var _dj = 0; _dj < _doors.length; _dj++) {
-      if (_doors[_dj].doorMesh === hitMesh) {
-        _doors[_dj].isOpen = !_doors[_dj].isOpen;
-        break;
-      }
+  var hits = ray.intersectObjects(doorMeshes, true);   // recursive — 그룹 안 메시도 검사
+  if (hits.length === 0) return;
+
+  var hitObj = hits[0].object;
+  var matchedIdx = -1;
+  for (var _dj = 0; _dj < _doors.length && matchedIdx < 0; _dj++) {
+    var dm = _doors[_dj].doorMesh;
+    var cur = hitObj;
+    while (cur) {
+      if (cur === dm) { matchedIdx = _dj; break; }
+      cur = cur.parent;
     }
+  }
+  if (matchedIdx < 0) return;
+
+  var newState = !_doors[matchedIdx].isOpen;
+  var grp = _doors[matchedIdx].linkGroup;
+  if (grp) {
+    // 연동 토글 — 같은 linkGroup 의 모든 패널 함께 (3연동 중문 등)
+    for (var _dk = 0; _dk < _doors.length; _dk++) {
+      if (_doors[_dk].linkGroup === grp) _doors[_dk].isOpen = newState;
+    }
+  } else {
+    _doors[matchedIdx].isOpen = newState;
   }
 }
 
@@ -2181,14 +2224,24 @@ function animate() {
     camera.position.y = eyeHeight;
   }
 
-  // 문 열림/닫힘 부드러운 회전 보간
-  // axis 미지정 = 'y' (스윙 도어: openRY 사용). axis='x'/'z' = 플랩 도어 (openR 사용).
+  // 문 열림/닫힘 부드러운 보간
+  //   - kind 미지정 / 'rotate' = 스윙·플랩 도어 (rotation 보간). axis 미지정='y'
+  //     = 스윙 도어 (openRY). axis='x'/'z' = 플랩 도어 (openR).
+  //   - kind='slide' = 미닫이 도어 (position 보간). slideAxis (기본 'z'),
+  //     slideOrigin (기준 위치), slideOpen (열렸을 때 추가 offset).
   for (var _da = 0; _da < _doors.length; _da++) {
     var _d = _doors[_da];
-    var _ax = _d.axis || 'y';
-    var _opR = (_ax === 'y') ? _d.openRY : _d.openR;
-    var _target = _d.isOpen ? _opR : 0;
-    _d.pivot.rotation[_ax] += (_target - _d.pivot.rotation[_ax]) * Math.min(1, dt * 7);
+    if (_d.kind === 'slide') {
+      var _sa = _d.slideAxis || 'z';
+      var _baseP   = _d.slideOrigin;
+      var _targetP = _baseP + (_d.isOpen ? _d.slideOpen : 0);
+      _d.pivot.position[_sa] += (_targetP - _d.pivot.position[_sa]) * Math.min(1, dt * 7);
+    } else {
+      var _ax = _d.axis || 'y';
+      var _opR = (_ax === 'y') ? _d.openRY : _d.openR;
+      var _target = _d.isOpen ? _opR : 0;
+      _d.pivot.rotation[_ax] += (_target - _d.pivot.rotation[_ax]) * Math.min(1, dt * 7);
+    }
   }
 
   // 1인칭 모드: 아파트 외부에서는 벽 안 보이게 (X-ray 효과)
