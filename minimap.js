@@ -737,6 +737,10 @@
 
      ROOMS/WALLS/DOORS/FURNITURE/WINDOWS 배열을 런타임에 변경하는 경우
      `_staticReady = false` 로 두 캔버스를 무효화해야 함.
+
+     ⚠️ 번호 배지(콜아웃 + 본체) 는 hover-spread 기능을 위해 동적 레이어로
+     이동했음. drawNumberOverlay() 는 매 프레임 main ctx 에 직접 호출.
+     _staticTopCv 에는 타이틀 바만 캐시.
   ─────────────────────────────────────────────────────────────────── */
   var _staticBgCv  = document.createElement('canvas');
   _staticBgCv.width = CW;  _staticBgCv.height = CH2;
@@ -777,14 +781,12 @@
   }
 
   function drawStaticTopTo(c){
-    // title bar
+    // title bar — 번호 배지는 hover-spread 위해 동적으로 메인 ctx 에 그림
     c.fillStyle    = 'rgba(255,255,255,0.55)';
     c.font         = '11px "Malgun Gothic",sans-serif';
     c.textAlign    = 'left';
     c.textBaseline = 'top';
     c.fillText('평면도  (12 × 6.6 m)', PAD, 2);
-    // 번호 오버레이 (콜아웃 + 배지) — _badgeLayout 캐시를 사용
-    drawNumberOverlay(c);
   }
 
   function drawMinimap() {
@@ -837,8 +839,11 @@
     ctx.lineWidth   = 1;
     ctx.stroke();
 
-    // ── 정적 상단 (title + 번호 배지) ────────────────────────────────
+    // ── 정적 상단 (title bar) ────────────────────────────────────────
     ctx.drawImage(_staticTopCv, 0, 0);
+
+    // ── 동적 번호 배지 (hover-spread 지원) ──────────────────────────
+    drawNumberOverlay(ctx);
 
     // ── 1인칭 SHIFT 조준 라벨 — freeMode/SHIFT 상태에 따라 표시/숨김 ──
     _updateAimLabel();
@@ -940,11 +945,63 @@
     return arr;
   }
 
+  /* ─────────────────────────────────────────────────────────────────
+     Hover-spread (사용자 요청)
+     마우스 커서가 미니맵 위에 있을 때, 그 주변 HOVER_R 안의 실제 위치
+     (`tx,ty`) 를 갖는 배지들을 마우스 주변 원 위에 균등 분포로 펼쳐
+     리더 라인으로 실제 위치를 가리키게 함 — 어느 번호가 무엇을 가리키는지
+     즉시 식별 가능. _mouseX/_mouseY 는 모듈 스코프에서 window mousemove
+     로 추적 중이며, minimap 캔버스는 pointer-events:none 이므로
+     getBoundingClientRect 로 화면 좌표 ↔ 캔버스 내부 좌표 변환.
+
+     hover 가 활성일 때만 spread 배지가 펼쳐지고, 그 외 배지들은 기본
+     spiral 레이아웃 그대로 유지.
+  ─────────────────────────────────────────────────────────────────── */
+  var HOVER_R         = 36;   // px — 실제 위치(tx,ty) 가 이 안에 있으면 spread 대상
+  var EXPLODE_R_BASE  = 64;   // px — spread 배지를 마우스 주변 원에 배치하는 기본 반경
+  var EXPLODE_R_PER   = 5;    // px — 항목 5 개 초과 시 1 개당 반경 추가
+
+  function _getMinimapHover(){
+    var rect = mc.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return null;
+    if (_mouseX < rect.left || _mouseX > rect.right) return null;
+    if (_mouseY < rect.top  || _mouseY > rect.bottom) return null;
+    return {
+      x: (_mouseX - rect.left) * (CW  / rect.width),
+      y: (_mouseY - rect.top)  * (CH2 / rect.height),
+    };
+  }
+
   function drawNumberOverlay(c) {
     if (!_badgeLayout) _badgeLayout = computeBadgeLayout();
 
-    // 1) 콜아웃 — 이동된 배지에 대해 실제 위치 점 + 연결선
+    // 0) hover 대상 배지 분류 — 실제 위치(tx,ty) 또는 배치 위치(bx,by)
+    //    가 hover 점 R 안에 있는 것. 두 위치 모두 고려해야 함:
+    //      · 실제 위치만 고려: 배지가 spiral 로 멀리 이동했을 때 시각 클러스터를
+    //        놓침 (사용자는 보이는 번호 더미를 hover 했는데 spread 안 됨).
+    //      · 배치 위치만 고려: 사용자가 평면도 영역(빈 공간)을 hover 했을 때
+    //        그곳에 있는 가구를 못 잡음.
+    //      → min(d_real, d_drawn) ≤ R 이면 포함.
+    var hover = _getMinimapHover();
+    var spreadList = [];
+    var inSpread   = {};   // key: b.n → true
+    if (hover) {
+      var R2 = HOVER_R * HOVER_R;
+      _badgeLayout.forEach(function(b){
+        var dx1 = b.tx - hover.x, dy1 = b.ty - hover.y;
+        var dx2 = b.bx - hover.x, dy2 = b.by - hover.y;
+        var d1 = dx1*dx1 + dy1*dy1;
+        var d2 = dx2*dx2 + dy2*dy2;
+        if (Math.min(d1, d2) <= R2) {
+          spreadList.push(b);
+          inSpread[b.n] = true;
+        }
+      });
+    }
+
+    // 1) 일반(spread 아님) 배지 — 기존 콜아웃 (실제 위치 점 + 연결선)
     _badgeLayout.forEach(function(b){
+      if (inSpread[b.n]) return;
       var dx = b.bx - b.tx, dy = b.by - b.ty;
       var d = Math.sqrt(dx*dx + dy*dy);
       if (d <= b.r + 1) return; // 거의 안 움직였으면 콜아웃 생략
@@ -968,10 +1025,85 @@
       c.stroke();
     });
 
-    // 2) 배지 본체 (이동된 위치)
+    // 2) 일반 배지 본체 (이동된 위치)
     _badgeLayout.forEach(function(b){
+      if (inSpread[b.n]) return;
       drawBadge(c, b.bx, b.by, b.n, b.bg, b.fg, b.r, b.fontSz);
     });
+
+    // 3) Hover spread — 마우스 주변 원 위에 펼침 + 리더 라인
+    if (hover && spreadList.length > 0) {
+      // 호버 가이드 원 (점선)
+      c.save();
+      c.beginPath();
+      c.arc(hover.x, hover.y, HOVER_R, 0, Math.PI*2);
+      c.strokeStyle = 'rgba(255,255,255,0.28)';
+      c.lineWidth = 1;
+      c.setLineDash([3, 3]);
+      c.stroke();
+      c.restore();
+
+      // 정렬 — 호버 중심 기준 각도 (실제 위치)
+      spreadList.forEach(function(b){
+        var dx = b.tx - hover.x, dy = b.ty - hover.y;
+        b._angle = (dx === 0 && dy === 0) ? 0 : Math.atan2(dy, dx);
+      });
+      spreadList.sort(function(a, b){ return a._angle - b._angle; });
+
+      // 원형 배치 — 항목이 많을수록 반경 늘림 (단일은 살짝 위로)
+      var n = spreadList.length;
+      var expR = EXPLODE_R_BASE + Math.max(0, n - 5) * EXPLODE_R_PER;
+      var maxBR = 0;
+      spreadList.forEach(function(b){ if (b.r + 2 > maxBR) maxBR = b.r + 2; });
+
+      if (n === 1) {
+        // 단일 항목: 실제 위치 위쪽으로 살짝 띄움
+        var only = spreadList[0];
+        only._sx = hover.x;
+        only._sy = hover.y - expR;
+      } else {
+        // 첫 항목의 실제 각도를 anchor 로 — 회전 일관성 유지
+        var anchorA = spreadList[0]._angle;
+        spreadList.forEach(function(b, i){
+          var a = anchorA + (i * 2 * Math.PI / n);
+          b._sx = hover.x + Math.cos(a) * expR;
+          b._sy = hover.y + Math.sin(a) * expR;
+        });
+      }
+      // 캔버스 경계 안으로 클램프
+      spreadList.forEach(function(b){
+        b._sx = Math.max(maxBR + 1, Math.min(CW  - maxBR - 1, b._sx));
+        b._sy = Math.max(maxBR + 1, Math.min(CH2 - maxBR - 1, b._sy));
+      });
+
+      // 리더 라인 — 실제 위치 → 펼친 위치 (배지 가장자리에 정확히 닿도록)
+      spreadList.forEach(function(b){
+        var dx = b._sx - b.tx, dy = b._sy - b.ty;
+        var d = Math.sqrt(dx*dx + dy*dy) || 1;
+        var ux = dx/d, uy = dy/d;
+        var rEdge = b.r + 2; // spread 배지는 +2 확대
+        c.beginPath();
+        c.moveTo(b.tx, b.ty);
+        c.lineTo(b._sx - ux*rEdge, b._sy - uy*rEdge);
+        c.strokeStyle = 'rgba(255,255,255,0.95)';
+        c.lineWidth = 1.4;
+        c.stroke();
+      });
+      // 실제 위치 점 — 배지 색상, 하이라이트
+      spreadList.forEach(function(b){
+        c.beginPath();
+        c.arc(b.tx, b.ty, 3.2, 0, Math.PI*2);
+        c.fillStyle = b.bg;
+        c.fill();
+        c.strokeStyle = '#fff';
+        c.lineWidth = 1.0;
+        c.stroke();
+      });
+      // 펼친 배지 본체 — +2 확대해 가독성 ↑
+      spreadList.forEach(function(b){
+        drawBadge(c, b._sx, b._sy, b.n, b.bg, b.fg, b.r + 2, b.fontSz + 1);
+      });
+    }
   }
 
   /* ─────────────────────────────────────────────────────────────────
