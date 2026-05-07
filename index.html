@@ -1,0 +1,2078 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>아파트 3D 뷰어</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{overflow:hidden;background:#000}
+canvas{display:block}
+#ui{
+  position:fixed;top:14px;left:14px;
+  background:rgba(0,0,0,.72);color:#eee;
+  font:13px/2.1 'Malgun Gothic','Apple SD Gothic Neo',sans-serif;
+  padding:13px 18px;border-radius:10px;pointer-events:none;
+  border:1px solid rgba(255,255,255,.12);min-width:180px
+}
+#ui strong{display:block;font-size:15px;color:#ffd;margin-bottom:3px}
+kbd{
+  background:rgba(255,255,255,.18);border-radius:4px;
+  padding:1px 6px;font-size:11px;font-family:monospace
+}
+#badge{
+  position:fixed;top:14px;right:14px;color:#fff;
+  font:bold 13px 'Malgun Gothic',sans-serif;
+  padding:9px 18px;border-radius:20px;pointer-events:none;
+  transition:background .3s
+}
+#ch{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none}
+#hint{
+  position:fixed;bottom:14px;left:50%;transform:translateX(-50%);
+  background:rgba(0,0,0,.6);color:#ccc;font:12px sans-serif;
+  padding:6px 14px;border-radius:8px;pointer-events:none;
+  transition:opacity 1s
+}
+#minimap{
+  position:fixed;bottom:14px;left:14px;
+  border-radius:8px;
+  border:1px solid rgba(255,255,255,.28);
+  box-shadow:0 2px 12px rgba(0,0,0,.55);
+  pointer-events:none;
+  opacity:.92;
+}
+#minimap-legend{
+  position:fixed; bottom:calc(14px + 288px + 8px); left:14px;
+  background:rgba(0,0,0,.78); color:#fff;
+  font:bold 12px 'Malgun Gothic',sans-serif;
+  padding:7px 12px; border-radius:6px;
+  border:1px solid rgba(255,255,255,.20);
+  box-shadow:0 2px 8px rgba(0,0,0,.5);
+  pointer-events:none;
+  white-space:nowrap;
+}
+#minimap-legend span{ margin-right:14px; }
+#minimap-legend span:last-child{ margin-right:0; }
+#drag-arm-bar{
+  position:fixed; width:38px; height:6px;
+  border-radius:3px;
+  background:rgba(0,0,0,.55);
+  border:1px solid rgba(255,255,255,.7);
+  box-shadow:0 1px 3px rgba(0,0,0,.5);
+  pointer-events:none;
+  display:none; z-index:9999;
+  transform:translateX(-50%);   /* 커서 중심 정렬 */
+  overflow:hidden;
+}
+#drag-arm-fill{
+  height:100%; width:0%;
+  background:linear-gradient(90deg,#ffd040,#ff8030);
+  border-radius:2px;
+  transition:width .04s linear;
+}
+#drag-arm-bar.armed #drag-arm-fill{
+  width:100%;
+  background:linear-gradient(90deg,#5cd06b,#3aa856);
+}
+#aim-label{
+  position:fixed; top:50%; left:50%;
+  transform:translate(-50%, 24px);
+  background:rgba(0,0,0,.78); color:#fff;
+  font:bold 13px 'Malgun Gothic',sans-serif;
+  padding:6px 12px; border-radius:6px;
+  border:1px solid rgba(255,255,255,.4);
+  box-shadow:0 2px 8px rgba(0,0,0,.6);
+  pointer-events:none;
+  display:none; z-index:9999;
+  white-space:nowrap;
+}
+#aim-label.t-room   { background:rgba(26,120,214,.88); }
+#aim-label.t-door   { background:rgba(245,197,24,.88); color:#000; }
+#aim-label.t-furn   { background:rgba(58,168,86,.88); }
+#aim-label.t-outlet { background:rgba(255,128,48,.92); color:#000; }   /* 콘센트 — orange */
+#aim-label.t-wall { background:rgba(214,49,26,.88); }
+#aim-label.t-win  { background:rgba(0,168,200,.88); }
+#eye-label{
+  position:fixed; top:50%; left:50%;
+  transform:translate(20px, -50%);   /* 크로스헤어 우측에 표시 */
+  background:rgba(0,0,0,.55); color:#fff;
+  font:bold 11px 'Malgun Gothic',sans-serif;
+  padding:3px 7px; border-radius:4px;
+  border:1px solid rgba(255,255,255,.3);
+  pointer-events:none; display:none;
+}
+</style>
+</head>
+<body>
+<div id="ui">
+  <strong>🏠 아파트 3D 뷰어</strong>
+  <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> — 이동<br>
+  <kbd>마우스</kbd> — 시점 회전<br>
+  <kbd>Space</kbd> — 카메라 모드 전환<br>
+  <kbd>Q</kbd> / <kbd>E</kbd> — 위 / 아래 <small style="color:#aaa">(프리: 비행 / 1인칭: 눈높이 ±1cm)</small>
+</div>
+<div id="badge" style="background:rgba(30,110,220,.88)">👤 1인칭 모드</div>
+<div id="ch">
+  <svg width="24" height="24">
+    <line x1="12" y1="3" x2="12" y2="21" stroke="white" stroke-width="1.5"/>
+    <line x1="3"  y1="12" x2="21" y2="12" stroke="white" stroke-width="1.5"/>
+    <circle cx="12" cy="12" r="2.5" fill="none" stroke="white" stroke-width="1.2"/>
+  </svg>
+</div>
+<div id="eye-label">160 cm</div>
+<div id="hint">화면을 클릭하면 마우스 시점 고정 (ESC로 해제)</div>
+<canvas id="minimap"></canvas>
+<div id="minimap-legend"></div>
+<div id="drag-arm-bar"><div id="drag-arm-fill"></div></div>
+<div id="aim-label"></div>
+
+<!-- Three.js 0.150.1 (UMD) — 동일 디렉토리에 벤더링됨 (vendor/three.min.js).
+     SHA-256: 72c8a8302444fb39cb8e04be1f556b2fdca798e606a99b4b37c8cfe3e3ee3272
+     원본 CDN: https://cdn.jsdelivr.net/npm/three@0.150.1/build/three.min.js -->
+<script src="vendor/three.min.js"></script>
+<script>
+'use strict';
+
+/* =====================================================================
+   SCENE / RENDERER
+===================================================================== */
+const scene    = new THREE.Scene();
+scene.background = new THREE.Color(0x88bbee);
+scene.fog = new THREE.FogExp2(0x88bbee, 0.022);
+
+const camera = new THREE.PerspectiveCamera(72, innerWidth/innerHeight, 0.05, 150);
+camera.rotation.order = 'YXZ';
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  // 모니터 변경/브라우저 줌 변동에 따른 devicePixelRatio 변화도 함께 반영.
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+/* =====================================================================
+   LIGHTING — 항목 W 로 단일 LIGHTING 객체 + applyLighting() 로 통합
+   ----------------------------------------------------------------------
+   '모두 따뜻하게' / '욕실만 더 밝게' / '저녁 시간대' 같은 일괄 변경을
+   LIGHTING 객체 한 곳 수정으로 처리. 합산 조도 ≈ 0.67 피크 — 텍스처
+   디테일이 죽지 않을 수준으로 의도적으로 낮게 유지.
+===================================================================== */
+const LIGHTING = {
+  ambient: { color: 0xfff0e0, intensity: 0.18 },     // 너무 밝으면 텍스처 흰 클리핑
+  sun: {
+    color: 0xffeedd, intensity: 0.28,                 // 그림자 방향성 역할만
+    position: [7, 16, 4],
+    shadowMapSize: 2048,
+    shadowFrustum: { left:-18, right:18, top:14, bottom:-14, near:0.5, far:50 },
+  },
+  // 방마다 PointLight (천장 부근 y = CH - 0.18 = 2.22)
+  rooms: [
+    { name:'발코니',     x:0.75,  z:3.3,  color:0xfff0d8, intensity:0.30, range:5 },
+    { name:'거실',       x:3.3,   z:1.35, color:0xfff5e0, intensity:0.55, range:7 },
+    { name:'주방·식당',  x:6.45,  z:1.35, color:0xfff5e0, intensity:0.50, range:5 },
+    { name:'연결통로 1', x:6.45,  z:3.75, color:0xfff5e0, intensity:0.38, range:5 },
+    { name:'연결통로 2', x:9.15,  z:3.45, color:0xfff5e0, intensity:0.33, range:4 },
+    { name:'침실 1',     x:9.15,  z:1.35, color:0xfff5e0, intensity:0.44, range:5 },
+    { name:'복도',       x:11.25, z:2.1,  color:0xfff8e8, intensity:0.36, range:6 },
+    { name:'침실 2',     x:3.3,   z:4.65, color:0xfff5e0, intensity:0.44, range:5 },
+    { name:'욕실',       x:6.45,  z:5.7,  color:0xe8f5ff, intensity:0.44, range:4 },
+    { name:'창고',       x:9.15,  z:5.4,  color:0xfff5e0, intensity:0.33, range:5 },
+  ],
+};
+
+function ptLight(x, y, z, clr = 0xfff8e0, intensity = 1.0, range = 7) {
+  const l = new THREE.PointLight(clr, intensity, range);
+  l.position.set(x, y, z);
+  scene.add(l);
+  const bm = new THREE.Mesh(
+    new THREE.SphereGeometry(.055, 7, 6),
+    new THREE.MeshBasicMaterial({color:0xffffbb})
+  );
+  bm.position.copy(l.position);
+  scene.add(bm);
+}
+
+function applyLighting(cfg){
+  scene.add(new THREE.AmbientLight(cfg.ambient.color, cfg.ambient.intensity));
+
+  const sun = new THREE.DirectionalLight(cfg.sun.color, cfg.sun.intensity);
+  sun.position.set(cfg.sun.position[0], cfg.sun.position[1], cfg.sun.position[2]);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(cfg.sun.shadowMapSize, cfg.sun.shadowMapSize);
+  Object.assign(sun.shadow.camera, cfg.sun.shadowFrustum);
+  scene.add(sun);
+
+  // ROOM_LIGHTS 호출은 LAYOUT CONSTANTS 정의(CH) 후에 실행되어야 하므로
+  // 본 함수가 아닌 별도 단계로 분리 → applyRoomLights() 참조.
+}
+applyLighting(LIGHTING);
+
+/* =====================================================================
+   MATERIALS
+===================================================================== */
+const mWall  = new THREE.MeshLambertMaterial({color:0xf0ebe0});
+const mExt   = new THREE.MeshLambertMaterial({color:0xe4ddd2, side:THREE.DoubleSide});
+const mWood  = new THREE.MeshLambertMaterial({color:0xb87c3a});
+const mBed   = new THREE.MeshLambertMaterial({color:0xd0b080});
+const mBath  = new THREE.MeshLambertMaterial({color:0xa8c8d4});
+const mBal   = new THREE.MeshLambertMaterial({color:0xd4ccb4});
+const mDoor  = new THREE.MeshLambertMaterial({color:0x7a5828});
+const mEntry = new THREE.MeshLambertMaterial({color:0x5a9e60});  // 현관 신발공간 (녹색)
+const mWin   = new THREE.MeshLambertMaterial({color:0xadd8e8, transparent:true, opacity:0.4, side:THREE.DoubleSide}); // 창문 유리
+const mCeil  = new THREE.MeshLambertMaterial({color:0xf5f3ef, side:THREE.DoubleSide}); // 천장 (1인칭만 표시)
+
+/* =====================================================================
+   재료 팔레트 PAL (항목 L)
+   ----------------------------------------------------------------------
+   가구·문·금속 부속에 쓰이는 색상을 의미별로 묶은 단일 원천.
+   - 위 mWall/mWood/mBath … 같은 기본 머티리얼 상수는 슬라브/벽 등
+     '구조' 용으로 유지되며, PAL 은 '가구/디테일' 용 (필요 시 확장).
+   - 한 카테고리(예: 모든 우드톤) 를 톤 변경하려면 PAL.wood.* 만 수정.
+   - 빌더에서는 makeLambert/makePhong 로 즉석 머티리얼을 만들거나,
+     아래 미리 만들어 둔 인스턴스(PAL.matLever 등) 를 재사용.
+===================================================================== */
+function makeLambert(color, opts) {
+  return new THREE.MeshLambertMaterial(Object.assign({color:color}, opts || {}));
+}
+function makePhong(color, opts) {
+  return new THREE.MeshPhongMaterial(Object.assign({color:color}, opts || {}));
+}
+const PAL = {
+  // 우드톤 — 의미 색상. '모든 우드 가구를 월넛으로' 같은 일괄 변경 시
+  // 이 그룹만 수정하면 됨.
+  wood: {
+    floor:        0xb87c3a,   // mWood 와 동일 (바닥재 — 구조)
+    bedFrame:     0x8b6343,   // 다크 오크 — 침대 프레임/풋보드/헤드보드
+    deskTop:      0xc9a96e,   // 밝은 오크 — 책상 상판
+    deskLegs:     0xa07840,   // 진한 오크 — 책상 다리
+    cabinetDoor:  0xc8b08a,   // 밝은 우드톤 — 인터랙티브 도어 패널
+    cabinetDark:  0x7a5828,   // mDoor 와 동일 (어두운 캐비닛)
+  },
+  // 금속
+  metal: {
+    appliance:   0x9e9e9e,    // 가전 외관 (세탁기·냉장고 등)
+    lever:       0xb4b4b4,    // 레버형 손잡이
+    matte:       0x424242,    // 어두운 매트 (세탁기 도어 등)
+    panel:       0x909090,    // 일반 손잡이/패널
+  },
+  // 패브릭
+  fabric: {
+    mattress:    0xeeeae3,    // 매트리스 아이보리
+    pillow:      0xffffff,    // 베개 흰색
+  },
+  // 미리 만들어 둔 머티리얼 인스턴스 (재사용 빈도가 높은 것들)
+  matLever:        null,
+  matCabinetDoor:  null,
+};
+PAL.matLever       = makePhong(PAL.metal.lever, {specular:0x909090, shininess:120});
+PAL.matCabinetDoor = makeLambert(PAL.wood.cabinetDoor);
+
+/* =====================================================================
+   LAYOUT CONSTANTS  (meters; 1 mm → 0.001 m)
+   Total: 12 000 mm × 6 600 mm
+   Columns X : 0 | 1.5 | 5.1 | 7.8 | 10.5 | 12
+   Rows    Z : 0 | 2.7 | 4.2 | 4.8 | 6.6
+   ──────────────────────────────────────────────────────────
+   개방 공간(거실+주방식당+연결통로1·2) :
+     (1.5-5.1, 0-2.7) 거실
+     (5.1-7.8, 0-4.8) 주방식당+연결통로1
+     (7.8-10.5,2.7-4.2) 연결통로2 → 현관 연결
+   침실2 : (1.5-5.1, 2.7-6.6)
+   침실1 : (7.8-10.5, 0-2.7)
+   욕실  : (5.1-7.8, 4.8-6.6)
+   창고  : (7.8-10.5, 4.2-6.6)  복도에서만 접근
+   복도  : (10.5-12,  0-6.6)
+   발코니: (0-1.5,    0-6.6)
+===================================================================== */
+const CH = 2.4;    // ceiling height
+const WT = 0.12;   // wall thickness
+const FT = 0.05;   // floor slab thickness
+const DH = 2.05;   // door height
+const DW = 0.9;    // standard door width
+
+const xL=0, xBal=1.5, xKit=5.1, xBR=7.8, xHall=10.5, xR=12;
+const zT=0, zM1=2.7, zM2=4.2, zBath=4.8, zB=6.6;
+
+// 단위 변환 헬퍼 (항목 T) — 코드는 m 단위, 사용자 요청은 mm/cm 가 흔함.
+// 사용 예: size: { w: mm(1800), d: cm(80), h: mm(740) }  // 명시적 단위 표기
+const mm = function(v){ return v * 0.001; };  // mm → m
+const cm = function(v){ return v * 0.01;  };  // cm → m
+// 침실 2 상단 벽 / 거실확장 하단 경계 (원본 평면도의 z=2.7 위치에서 80cm 이동된 라인).
+// 3D 지오메트리·벽지·걸레받이·미니맵 ROOMS/WALLS 모든 곳에서 단일 원천으로 참조.
+const zLR2 = 3.5;
+
+/* =====================================================================
+   GEOMETRY HELPERS
+===================================================================== */
+function B(w, h, d, mat, x, y, z, ry = 0) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
+  m.position.set(x,y,z);
+  if (ry) m.rotation.y = ry;
+  m.castShadow = m.receiveShadow = true;
+  scene.add(m);
+  return m;
+}
+function slab(mat, x1,z1,x2,z2, y = 0) {
+  const m = B(x2-x1, FT, z2-z1, mat, (x1+x2)/2, y+FT/2, (z1+z2)/2);
+  // 바닥 슬라브는 그림자 캐스팅 불필요 — 모든 광원(sun, ptLight) 이 슬라브
+  // 위쪽에 있어 슬라브 아래로 떨어질 그림자가 없다.
+  // 천장(mCeil) 만 캐스팅 유지: 1인칭에서 sun 빛을 막아 실내가 어두워야 함.
+  if (mat !== mCeil) m.castShadow = false;
+}
+function HW(mat, x1,x2, z, y0 = 0, h = CH) {
+  B(x2-x1, h, WT, mat, (x1+x2)/2, y0+h/2, z);
+}
+function VW(mat, z1,z2, x, y0 = 0, h = CH) {
+  B(WT, h, z2-z1, mat, x, y0+h/2, (z1+z2)/2);
+}
+function HWD(mat, x1,x2, z, gx, gw = DW, gh = DH) {
+  const ax = x1+gx, bx = ax+gw;
+  if (ax-x1 > .01) HW(mat, x1, ax, z);
+  if (x2-bx > .01) HW(mat, bx, x2, z);
+  if (CH-gh > .01) HW(mat, ax, bx, z, gh, CH-gh);
+}
+function VWD(mat, z1,z2, x, gz, gw = DW, gh = DH) {
+  const az = z1+gz, bz = az+gw;
+  if (az-z1 > .01) VW(mat, z1, az, x);
+  if (z2-bz > .01) VW(mat, bz, z2, x);
+  if (CH-gh > .01) VW(mat, az, bz, x, gh, CH-gh);
+}
+
+/* =====================================================================
+   TILE TEXTURE  — 600mm 대형 포세린 타일 (거실·주방식당·침실1·침실2·창고)
+   캔버스 1024×1024 = 실제 1.2m×1.2m (600mm 타일 2×2 배열, 이음새 포함)
+
+   [텍스처 파라미터화 — 항목 Q]
+   TILE_CONFIG 한 곳에서 색상/노이즈/얼룩 파라미터를 모음. 변경 예:
+     "타일 어둡게"      → TILE_CONFIG.baseColors 의 hex 값 한 단계 어두운 톤
+     "줄눈 더 진하게"   → TILE_CONFIG.groutColor
+     "노이즈 줄이기"    → TILE_CONFIG.noiseDensity 감소
+===================================================================== */
+const TILE_CONFIG = {
+  size:           1024,                                         // 캔버스 1변 (px)
+  tileMM:         600,                                          // 실제 타일 크기 (mm) — 정보용
+  groutHalfPx:    1,                                            // 반-줄눈 두께 (px)
+  groutColor:     '#c8c4bc',                                    // 줄눈색 — 타일에 매우 근접한 톤
+  baseColors:     ['#e8e4dc','#ebe7df','#e7e3db','#e9e5dd'],     // 4개 타일 미세 편차
+  noiseDensity:   3500,                                         // 한 타일당 입자 개수
+  noiseRange:     [195, 240],                                   // 입자 RGB 명도 범위
+  noiseAlpha:     [0.020, 0.060],                               // 입자 알파 범위
+  cloudCount:     4,                                            // 한 타일당 구름형 얼룩 개수
+  cloudRadius:    [60, 140],                                    // 구름 반경 범위 (px)
+  cloudColor:     'rgba(170,165,158,$a)',                       // 구름 색 (알파 자리 $a)
+  cloudAlpha:     [0.025, 0.050],
+  edgeShadowMax:  0.04,                                         // 모서리 음영 최대 알파
+};
+
+function buildTileCanvas(cfg){
+  var S=cfg.size, GH=cfg.groutHalfPx, T=(S-GH*4)/2;
+  var c=document.createElement('canvas'); c.width=c.height=S;
+  var cx=c.getContext('2d');
+
+  // ① 줄눈 배경
+  cx.fillStyle=cfg.groutColor;
+  cx.fillRect(0,0,S,S);
+
+  // ② 4개 타일
+  var xs=[GH, GH+T+GH*2], ys=[GH, GH+T+GH*2];
+  for(var ty=0;ty<2;ty++){
+    for(var tx=0;tx<2;tx++){
+      var x0=xs[tx], y0=ys[ty];
+      var bc=cfg.baseColors[ty*2+tx];
+
+      // 기본색
+      cx.fillStyle=bc; cx.fillRect(x0,y0,T,T);
+
+      // 미세 입자 노이즈
+      var nLo=cfg.noiseRange[0], nHi=cfg.noiseRange[1];
+      var aLo=cfg.noiseAlpha[0], aHi=cfg.noiseAlpha[1];
+      for(var n=0;n<cfg.noiseDensity;n++){
+        var nx=x0+Math.random()*T, ny=y0+Math.random()*T;
+        var v=(nLo+Math.random()*(nHi-nLo))|0;
+        cx.fillStyle='rgba('+v+','+((v*.99)|0)+','+((v*.95)|0)+','
+                    +(aLo+Math.random()*(aHi-aLo)).toFixed(3)+')';
+        cx.fillRect(nx,ny,1+Math.random()*1.5,1+Math.random()*1.5);
+      }
+
+      // 구름형 얼룩
+      var crLo=cfg.cloudRadius[0], crHi=cfg.cloudRadius[1];
+      var caLo=cfg.cloudAlpha[0], caHi=cfg.cloudAlpha[1];
+      for(var s=0;s<cfg.cloudCount;s++){
+        var lx=x0+20+Math.random()*(T-40), ly=y0+20+Math.random()*(T-40);
+        var rr=crLo+Math.random()*(crHi-crLo);
+        var grd=cx.createRadialGradient(lx,ly,0,lx,ly,rr);
+        var alpha=(caLo+Math.random()*(caHi-caLo)).toFixed(3);
+        grd.addColorStop(0, cfg.cloudColor.replace('$a', alpha));
+        grd.addColorStop(1, cfg.cloudColor.replace('$a', '0'));
+        cx.fillStyle=grd;
+        cx.fillRect(x0,y0,T,T);
+      }
+
+      // 모서리 음영
+      var gr=cx.createLinearGradient(x0,y0,x0+3,y0+3);
+      gr.addColorStop(0,'rgba(130,125,118,'+cfg.edgeShadowMax+')');
+      gr.addColorStop(1,'rgba(130,125,118,0)');
+      cx.fillStyle=gr; cx.fillRect(x0,y0,T,T);
+    }
+  }
+  return c;
+}
+var _tileCv = buildTileCanvas(TILE_CONFIG);
+
+/* ──────────────────────────────────────────────────────────────────
+   buildTileFloor
+   타일 바닥 전 구역(거실·주방식당·침실1·침실2·창고+통로)을
+   하나의 BufferGeometry 로 묶어 단일 드로우콜로 렌더링.
+
+   ★ UV 방식: 모든 정점에 직접 UV = (world_x / TW, world_z / TW) 기입.
+     → 별도 메시 경계가 없으므로 어떤 방향으로도 무늬가 100 % 연속.
+──────────────────────────────────────────────────────────────────── */
+function buildTileFloor(){
+  var TW=1.2;   // 캔버스 1장 = 600mm 타일 2×2 = 1.2m × 1.2m
+  var Y=FT;     // 타일 표면 높이 (= slab top)
+  var pos=[], uvs=[], nrm=[], idx=[], vi=0;
+
+  // XZ 평면 상의 사각형 하나 추가
+  function quad(x1,z1,x2,z2){
+    // v0=(x1,z1) v1=(x2,z1) v2=(x2,z2) v3=(x1,z2)
+    pos.push( x1,Y,z1,  x2,Y,z1,  x2,Y,z2,  x1,Y,z2 );
+    uvs.push( x1/TW,z1/TW,  x2/TW,z1/TW,  x2/TW,z2/TW,  x1/TW,z2/TW );
+    nrm.push( 0,1,0, 0,1,0, 0,1,0, 0,1,0 );
+    // 법선 +Y(위쪽)가 되려면 CCW: v0→v2→v1, v0→v3→v2
+    // (기존 v0→v1→v2 순서는 법선이 -Y → 위에서 보면 컬링되어 바닥 消失)
+    idx.push( vi,vi+2,vi+1,  vi,vi+3,vi+2 );
+    vi+=4;
+  }
+
+  // ── 타일 구역 정의 ──────────────────────────────────────────────
+  // 거실확장 + 창고2 (인덴트 x=0~0.6, z=0~0.9 제외 — 66번 벽 이동)
+  quad(0.6,  zT,      xBal,    0.9   );  // 창고2 영역
+  quad(xL,   0.9,     xBal,    zLR2  );  // 거실확장 (인덴트 아래)
+  quad(xBal, zT,      xKit,    zLR2  );  // 거실
+  quad(xKit, zT,      xBR,     zBath );  // 주방식당 + 연결통로1
+  quad(xBR,  zM1,     xBR+DW,  zM2   );  // 침실1 ↔ 창고 문 사이 통로
+  quad(xBR+DW, zM2-0.20, xHall, zM2 );  // 신발공간 남측 20cm 축소 보충 타일 (문 44 방향)
+  quad(xBR,  zT,      xHall,   zM1   );  // 침실 1
+  quad(xBal, zLR2,    xKit,    zB    );  // 침실 2
+  quad(xBR,  zM2,     xHall,   zB    );  // 창고
+
+  // ── BufferGeometry 조립 ─────────────────────────────────────────
+  var geo=new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
+  geo.setAttribute('uv',       new THREE.Float32BufferAttribute(uvs,2));
+  geo.setAttribute('normal',   new THREE.Float32BufferAttribute(nrm,3));
+  geo.setIndex(idx);
+
+  var tex=new THREE.CanvasTexture(_tileCv);
+  tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+  tex.flipY=false;   // V=0 → canvas y=0 → world z=0 방향, 뒤집기 없음
+  var mat=new THREE.MeshLambertMaterial({map:tex, side:THREE.FrontSide});
+
+  var m=new THREE.Mesh(geo,mat);
+  m.receiveShadow=true;
+  scene.add(m);
+}
+
+/* =====================================================================
+   FLOORS
+===================================================================== */
+buildTileFloor();                                      // 타일 전 구역 (단일 메시, 경계 없는 연속 UV)
+slab(mBal,   xL,      zLR2,   xBal,  zB        );    // 발코니 아래쪽
+slab(mEntry, xBR+DW,  zM1,    xHall, zM2-0.20, -0.05);    // 현관 신발공간 (5cm 낮음, 문 44 방향 -20cm 축소)
+slab(mBal,   xHall,   zT,     xR,    zM2, -0.05);    // 복도 (5cm 낮음, 벽 82 이동에 따라 z=4.2까지)
+slab(mBath,  xKit,    zBath,  xBR,   zB        );    // 욕실
+
+// ── 단차 라이저: 6번 방(연결통로2) 내부 5cm 높이차 채움 ──────────
+//    타일(y=0.05) ↔ 현관 신발공간(y=0) 경계의 수직 빈 공간을 벽 재질로 막음.
+//    높이를 FT보다 살짝 키워(0.054) 양 끝 z-fighting 방지.
+// 1) x=8.7 라이저 (z=2.7~4.0, 신발공간 서측 경계, 줄어든 길이)
+B(0.01, FT+0.004, zM2-0.20-zM1, mWall, xBR+DW, FT/2, (zM1+zM2-0.20)/2);
+// 2) z=4.0 라이저 (신발공간 남측 경계, 신발공간 축소로 인한 신규 단차)
+B(xHall-(xBR+DW), FT+0.004, 0.01, mWall, (xBR+DW+xHall)/2, FT/2, zM2-0.20);
+
+/* =====================================================================
+   CEILINGS  — 1인칭 모드에서만 표시 (animate 루프에서 mCeil.visible 토글)
+   천장 하면 y=CH=2.4, 슬래브 두께=FT=0.05 → 상면 y=2.45
+===================================================================== */
+slab(mCeil, 0.6,   zT,    xBal,  0.9  , CH);  // 창고2 (인덴트 영역 제외, 66번 벽 이동)
+slab(mCeil, xL,    0.9,   xBal,  zB   , CH);  // 거실확장 + 발코니
+slab(mCeil, xBal,  zT,    xKit,  zM1  , CH);  // 거실
+slab(mCeil, xKit,  zT,    xBR,   zBath, CH);  // 주방식당 + 연결통로1
+slab(mCeil, xBal,  zM1,   xKit,  zB   , CH);  // 침실2
+slab(mCeil, xKit,  zBath, xBR,   zB   , CH);  // 욕실
+slab(mCeil, xBR,   zT,    xHall, zM1  , CH);  // 침실1
+slab(mCeil, xBR,   zM1,   xHall, zM2  , CH);  // 연결통로2
+slab(mCeil, xBR,   zM2,   xHall, zB   , CH);  // 창고
+slab(mCeil, xHall, zT,    xR,    zM2  , CH);  // 복도 (z=0~4.2)
+
+/* =====================================================================
+   OUTER WALLS
+===================================================================== */
+// ── 앞면 z=0 ─ 불투명 외벽 (창문·유리 없음) ──
+// 창고2 좌측 인덴트(x=0~0.6, z=0~0.9): 외벽이 안쪽으로 0.6m 들어옴 (66번 벽 +0.2m 이동)
+HW(mExt, 0.6,   xBal,   zT);   // 발코니 앞 (창고2 북쪽, x=0.6부터 시작)
+HW(mExt, xL,    0.6,    0.9);  // 인덴트 남쪽 외벽 (z=0.9, x=0~0.6)
+VW(mExt, zT,    0.9,    0.6);  // 인덴트 서쪽 외벽 (x=0.6, z=0~0.9) — 66번 벽
+HW(mExt, xBal,  xKit,   zT);   // 거실 앞
+HW(mExt, xKit,  xBR,    zT);   // 주방식당 앞
+HW(mExt, xBR,   xHall,  zT);   // 침실1 앞
+HWD(mExt, xHall, xR,    zT, 0.3, DW);  // 복도 앞 — 현관문 (중앙, x=10.8~11.7)
+
+// ── 뒷면 z=6.6 ─ x=0~10.5 전고 / x=10.5~12 외벽 제거 (복도가 z=4.2로 단축됨) ──
+HW(mExt, xL,    xHall, zB);                  // 발코니~창고 (x=0~10.5) 전고
+// 새 벽 82 (복도 남측 외벽, z=4.2에서 x=10.5~12, 절반 높이) — 기존 z=6.6 외벽 대체
+HW(mExt, xHall, xR,    zM2, 0, CH/2);        // 복도 남측 (z=4.2, x=10.5~12)
+
+// ── 왼쪽 x=0 : 베란다식 바닥~천장 연속창 (거실확장 + 발코니 좌벽 연결) ──
+// 유리①(z=0.06~3.44, 거실확장) + 분리벽 기둥(3.44~3.56) + 유리②(3.56~6.54, 발코니)
+(function(){
+  var sillH = 0.10;           // 하단 창틀 높이 (10 cm, 베란다창 특징)
+  var glH   = CH - sillH;     // 유리 높이 (sill → 천장)
+  var zS    = 0.9 + WT / 2;   // 인덴트 이후 시작 z = 0.96 (창고2 인덴트 남벽 뒷면)
+  var zE    = zB - WT / 2;    // 뒤쪽 코너 안쪽 z = 6.54
+  var zmid1 = zLR2 - WT / 2;  // 발코니 분리벽 앞면 z = 3.44
+  var zmid2 = zLR2 + WT / 2;  // 발코니 분리벽 뒷면 z = 3.56
+
+  // 뒤 코너 솔리드만 (앞 코너는 인덴트로 대체됨)
+  VW(mExt, zE,    zB,    xL);
+
+  // 하단 창틀 띠 (인덴트 이후, y=0 ~ sillH)
+  VW(mExt, zS,    zE,    xL, 0, sillH);
+
+  // 유리① — 거실확장 구간 (z = zS ~ zmid1, 3.38 m)
+  B(WT, glH, zmid1 - zS, mWin,
+    xL, sillH + glH / 2, (zS + zmid1) / 2);
+
+  // 유리② — 발코니 구간 (z = zmid2 ~ zE, 2.98 m)
+  B(WT, glH, zE - zmid2, mWin,
+    xL, sillH + glH / 2, (zmid2 + zE) / 2);
+})();
+
+// ── 오른쪽 x=12 : 외벽, 절반 높이 (복도 z=0~4.2 구간만, 단축됨) ──
+VW(mExt, zT, zM2, xR, 0, CH/2);
+
+/* =====================================================================
+   발코니 격벽  x = 1.5
+   위쪽(z=0~3.5) 제거 → 거실과 위쪽 발코니 개방
+   아래쪽(z=3.5~6.6)만 유지
+===================================================================== */
+// 아래쪽 난간 (z=3.5~6.6, y=0~0.9m) — 침실2 ↔ 발코니 경계
+VW(mWall, zLR2+WT/2, zB-WT/2, xBal, 0, 0.9);
+
+// ── 침실2 ↔ 발코니 창문 (y=0.9~2.1m, 폭 2.0m 중앙 배치) ──────────
+// 벽 z 범위 : 3.56 ~ 6.54 (총 2.98m)
+// 창문 z 범위: 4.05 ~ 6.05 (2.0m), 양쪽 여백 각 0.49m
+// 창틀 높이 : 하단 0.9m / 상단 2.1m / 높이 1.2m
+(function(){
+  var z1=zLR2+WT/2, z2=zB-WT/2;  // 3.56 ~ 6.54
+  var wz1=4.05,    wz2=6.05;     // 창문 범위 (폭 2.0m)
+  var ws=0.9, wt=2.1, wh=wt-ws; // sill·head·height
+  VW(mWall, z1,  wz1, xBal, ws, wh);       // 앞쪽(z↓) 옆벽
+  VW(mWall, wz2, z2,  xBal, ws, wh);       // 뒤쪽(z↑) 옆벽
+  VW(mWall, z1,  z2,  xBal, wt, CH-wt);   // 인방 (상단 전체)
+  B(WT, wh, wz2-wz1, mWin, xBal, ws+wh/2, (wz1+wz2)/2); // 유리
+})();
+
+/* =====================================================================
+   내부 벽체
+===================================================================== */
+// ── [발코니 분리벽] z=3.5, x=0-1.5 : 위/아래 발코니 구분, 중앙에 문 ──
+// 발코니 폭 1.5m, 문 0.9m → 양쪽 각 0.3m 벽 (gx=0.3)
+HWD(mWall, xL,    xBal,  zLR2, 0.3,  DW);
+// ── [침실2 상단 벽] z=3.5, x=1.5-5.1 : 봉인 ──
+HW(mWall,  xBal,  xKit,  zLR2);
+
+// ── [창고2 남벽] z=0.9, x=0.6-1.5 : 거실확장↔창고2, 중앙 문 (gx=0.1, w=0.7) ──
+//     66번 벽 이동(+0.2m)으로 폭 0.9m, 양쪽 솔리드 각 0.1m, 문 폭 0.7m
+HWD(mWall, 0.6,   xBal,  0.9, 0.1, 0.7);
+// ── [창고2 동벽] x=1.5, z=0-0.9 : 창고2↔거실 (문 없음) ──
+VW(mWall,  0,     0.9,   xBal);
+
+// ── [발코니 우하단 하수 PD] x=1.1-1.5, z=6.2-6.6 : 전고 닫힌 박스 (2면만 노출) ──
+//     평면도 반영: 좌하단 → 우하단으로 이동
+HW(mWall,  1.1,   xBal,  6.2);     // 북쪽 면 (발코니 향)
+VW(mWall,  6.2,   zB,    1.1);     // 서쪽 면 (발코니 향)
+
+// ── [욕실 동쪽 배관 chase] x=7.3-7.8, z=4.8-6.6 : 욕실 쪽 +0.50m 두꺼움 ──
+//     서쪽 면(13번 구역 왼쪽 벽)을 욕실 방향으로 0.2m 이동 (7.5 → 7.3)
+B(0.50, CH, zB-zBath, mWall, 7.55, CH/2, (zBath+zB)/2);
+
+// ── [거실↔주방식당 사이 배관 기둥] x=4.90-5.30, z=0-0.75 : 위 외벽에서 +z 0.75m 돌출 ──
+//     씽크대(z=0~0.66)보다 더 튀어나오는 깊이. 폭 0.40m, 깊이 0.75m, 전고.
+B(0.40, CH, 0.75, mWall, 5.10, CH/2, 0.375);
+
+// ── 벽지 텍스처 (아치 스팬드럴 + 내부 벽지 공용) — 항목 Q 파라미터화 ──────────────────
+const WALLPAPER_CONFIG = {
+  size:           512,                      // 캔버스 1변 (px)
+  baseColor:      '#f4f2ee',                // 베이스 색 (아이보리)
+  noiseDensity:   80000,                    // 입자 개수
+  noiseRange:     [200, 255],               // 입자 RGB 명도 범위
+  noiseAlpha:     [0.07, 0.21],             // 입자 알파 범위
+  lineCount:      180,                      // 가로 가는 줄 개수
+  lineColor:      'rgba(210,207,202,$a)',   // 줄 색 (알파 자리 $a)
+  lineAlpha:      [0.03, 0.09],             // 줄 알파 범위
+  lineWidthRange: [0.5, 1.5],
+};
+function buildWallpaperTexture(cfg){
+  var S=cfg.size;
+  var c=document.createElement('canvas'); c.width=c.height=S;
+  var cx=c.getContext('2d');
+  cx.fillStyle=cfg.baseColor; cx.fillRect(0,0,S,S);
+  var nLo=cfg.noiseRange[0], nHi=cfg.noiseRange[1];
+  var aLo=cfg.noiseAlpha[0], aHi=cfg.noiseAlpha[1];
+  for(var i=0;i<cfg.noiseDensity;i++){
+    var px=Math.random()*S, py=Math.random()*S;
+    var v=(nLo+Math.random()*(nHi-nLo))|0;
+    cx.fillStyle='rgba('+((v*.97)|0)+','+((v*.96)|0)+','+((v*.93)|0)+','
+                +(aLo+Math.random()*(aHi-aLo)).toFixed(2)+')';
+    cx.fillRect(px,py,1+Math.random()*2,1+Math.random()*2);
+  }
+  var laLo=cfg.lineAlpha[0], laHi=cfg.lineAlpha[1];
+  var lwLo=cfg.lineWidthRange[0], lwHi=cfg.lineWidthRange[1];
+  for(var j=0;j<cfg.lineCount;j++){
+    var yl=Math.random()*S;
+    var alpha=(laLo+Math.random()*(laHi-laLo)).toFixed(2);
+    cx.strokeStyle=cfg.lineColor.replace('$a', alpha);
+    cx.lineWidth=lwLo+Math.random()*(lwHi-lwLo);
+    cx.beginPath(); cx.moveTo(0,yl); cx.lineTo(S,yl); cx.stroke();
+  }
+  var tex=new THREE.CanvasTexture(c);
+  tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+  return tex;
+}
+var _wpTex = buildWallpaperTexture(WALLPAPER_CONFIG);
+
+// ── [침실1 아치 문] z=2.7, x=7.8~10.5 ──
+// 개구부 왼쪽 발: xBR+WT/2 (VW 벽 오른면에 정렬) / 오른쪽 발: xBR+DW
+// → 왼쪽·오른쪽 모두 인접 벽 면과 딱 맞닿아 끊김 없이 연결
+(function(){
+  HW(mWall, xBR+DW,    xHall,   zM1);              // 오른쪽 솔리드 벽 (x=8.7~10.5)
+  HW(mWall, xBR+WT/2,  xBR+DW,  zM1, DH, CH-DH);  // 인방 (y=DH~CH, VW 벽 오른면 기준)
+
+  // 왼쪽 발 x = xBR+WT/2 (VW 벽 오른쪽 면) 로 아치를 시작
+  // 오른쪽 발 x = xBR+DW 로 HW 오른쪽 벽 왼쪽 면에 정렬 (기존과 동일)
+  var aLx = xBR + WT/2;           // 왼쪽 아치 발 x = 7.86
+  var aR  = (DW - WT/2) / 2;      // 반원 반지름 = 0.42 m
+  var aCX = aLx + aR;             // 반원 중심 x = 8.28
+  var aCY = DH - aR;              // 반원 중심 y = 1.63 m
+  var N   = 64;                   // 호 분할 수
+
+  // ── 스팬드럴: 왼쪽 발(aLx,aCY) → 반원호 → 오른쪽 발(xBR+DW,aCY) ──
+  var s = new THREE.Shape();
+  s.moveTo(aLx, DH);                          // ① 왼쪽 상단 (VW 벽 오른면)
+  s.lineTo(aLx, aCY);                         // ② 왼쪽 아치 발
+  for(var i=0; i<=N; i++){
+    var th = Math.PI - (i/N)*Math.PI;          // π → 0 (왼발 → 꼭대기 → 오른발)
+    s.lineTo(aCX + aR*Math.cos(th), aCY + aR*Math.sin(th));
+  }
+  s.lineTo(xBR+DW, DH);                       // ④ 오른쪽 아치 발 → 오른쪽 상단
+
+  var mSp = new THREE.MeshLambertMaterial({map:_wpTex, side:THREE.DoubleSide});
+  var geo = new THREE.ExtrudeGeometry(s, {depth:WT, bevelEnabled:false});
+  var m   = new THREE.Mesh(geo, mSp);
+  m.position.set(0, 0, zM1-WT/2);
+  m.receiveShadow = true;
+  scene.add(m);
+})();
+
+// ── [주방·침실1 경계] x=7.8, z=0-2.7 : 문 없음 ──
+// 앞: 외벽 내면(WT/2)에서 시작 / 뒤: HWD 외면(zM1+WT/2)까지 연장 → 깔끔한 90° 접합
+VW(mWall,  WT/2,          zM1+WT/2, xBR);
+
+// ── [침실2 우측 벽] x=5.1, z=3.5-6.6 : 위쪽에 문 (gz=0.10, gw=0.80) ──
+// 힌지가 벽 71 끝점에서 10cm 떨어지도록 도어 시작점을 z=3.6으로 이동, 도어 폭 0.8m.
+// VWD가 gz=0.10에 의해 z=3.5~3.6 구간(10cm fill 벽)을 자동 생성, 도어 z=3.6~4.4,
+// 솔리드 z=4.4~6.54도 생성.
+VWD(mWall, zLR2,           zB-WT/2,  xKit, 0.10, 0.80);
+
+// ── [창고 좌측 벽] x=7.8, z=4.2-6.6 : 창고 / 연결통로1·욕실 (문 없음) ──
+// 앞: HWD 내면(zM2-WT/2)에서 시작 / 뒤: 외벽 내면(zB-WT/2)까지
+VW(mWall,  zM2-WT/2,       zB-WT/2,  xBR);
+
+// ── [복도·침실1 경계] x=10.5, z=0~2.76 : 창문 (복도 방향) ──
+// 창문: z 중앙(1.41) ±0.675 = z 0.735~2.085, 높이 y=0.9~2.0 (폭 1.35m × 높이 1.1m)
+// 폭 1.5x 확장 (0.9 → 1.35)
+(function(){
+  var z1=WT/2, z2=zM1+WT/2;         // 0.06 ~ 2.76
+  var wz1=0.735, wz2=2.085;          // 창문 z 범위 (1.5x 확장)
+  var ws=0.9, wt=2.0, wh=wt-ws;     // 창틀 하단, 상단, 높이
+  VW(mWall, z1,  z2,  xHall, 0,  ws);        // 창대(하단 전체)
+  VW(mWall, z1,  wz1, xHall, ws, wh);        // 창문 왼쪽 벽
+  VW(mWall, wz2, z2,  xHall, ws, wh);        // 창문 오른쪽 벽
+  VW(mWall, z1,  z2,  xHall, wt, CH-wt);     // 인방(상단 전체)
+  B(WT, wh, wz2-wz1, mWin, xHall, ws+wh/2, (wz1+wz2)/2); // 유리
+})();
+
+// ── [현관 내부문] x=10.5, z=2.7-4.2 : 복도 → 연결통로2 문 ──
+// z 범위를 위아래 VW 내면과 맞춤 (z=2.76~4.14)
+// gz: 2.85-2.76=0.09 → 문 위치는 기존 z=2.85~3.75 그대로 유지
+VWD(mWall, zM1+WT/2,      zM2-WT/2, xHall, 0.09, DW);
+
+// ── [복도·창고 경계] x=10.5, z=4.14~6.54 : 창문 (복도 방향) ──
+// 창문: z 중앙(5.34) ±0.675 = z 4.665~6.015, 높이 y=0.9~2.0
+// 폭 1.5x 확장 (0.9 → 1.35)
+(function(){
+  var z1=zM2-WT/2, z2=zB-WT/2;      // 4.14 ~ 6.54
+  var wz1=4.665, wz2=6.015;          // 창문 z 범위 (1.5x 확장)
+  var ws=0.9, wt=2.0, wh=wt-ws;
+  VW(mWall, z1,  z2,  xHall, 0,  ws);        // 창대(하단 전체)
+  VW(mWall, z1,  wz1, xHall, ws, wh);        // 창문 위쪽 벽
+  VW(mWall, wz2, z2,  xHall, ws, wh);        // 창문 아래쪽 벽
+  VW(mWall, z1,  z2,  xHall, wt, CH-wt);     // 인방(상단 전체)
+  B(WT, wh, wz2-wz1, mWin, xHall, ws+wh/2, (wz1+wz2)/2); // 유리
+})();
+
+// ── [창고 위쪽 왼쪽 문] z=4.2, x=7.8-10.5 ──
+// 힌지가 벽 65 끝점에서 10cm 떨어지도록 도어 시작점을 x=7.9로 이동, 도어 폭 0.8m.
+// HWD가 gx=0.10에 의해 x=7.8~7.9 구간(10cm fill 벽) 자동 생성, 도어 x=7.9~8.7,
+// 솔리드 x=8.7~10.5도 생성.
+HWD(mWall, xBR,   xHall, zM2, 0.10, 0.80);
+
+// ── [욕실 상단 벽] z=4.8, x=5.1-7.8 : 연결통로1 → 욕실 문 (gap=0.3, 폭 0.8) ──
+HWD(mWall, xKit,  xBR,   zBath, 0.3, 0.8, DH);
+
+/* =====================================================================
+   걸레받이 (Skirting Boards)
+   욕실(xKit~xBR, zBath~zB) · 복도(xHall~xR) · 발코니(xL~xBal) 제외
+   높이 7.5cm / 두께 1cm / 약광택 흰색 래커
+   ─────────────────────────────────────────────────────────────────────
+   좌표 기준:
+     H(x1,x2, zf, dz) : 수평 걸레받이 — 벽 내면 z=zf, dz=+h(북돌출)/−h(남돌출)
+     V(z1,z2, xf, dx) : 수직 걸레받이 — 벽 내면 x=xf, dx=+h(동돌출)/−h(서돌출)
+===================================================================== */
+(function(){
+  var BH = 0.075;                        // 높이 7.5 cm
+  var BD = 0.010;                        // 두께 1 cm
+  var BY = FT + BH / 2;                  // 중심 y ≈ 0.0875
+  var h  = BD / 2 + 0.004;               // 반두께(0.005) + 벽지오프셋(E=0.003) + 여유(1mm)
+                                          // → 박스 뒷면이 벽지 평면 앞 1mm: 안에서도 가려지지 않음
+  var W2 = WT / 2;                       // 벽 반두께 = 0.06
+
+  var mB = new THREE.MeshPhongMaterial({
+    color:0xffffff, specular:0x303030, shininess:38
+  });
+
+  function H(x1,x2, zf, dz){
+    B(x2-x1, BH, BD, mB, (x1+x2)/2, BY, zf+dz);
+  }
+  function V(z1,z2, xf, dx){
+    B(BD, BH, z2-z1, mB, xf+dx, BY, (z1+z2)/2);
+  }
+
+  /* ── ① 남쪽 외벽 z=0 (창고2+거실+주방식당+침실1, 인덴트 이후 x=0.6~) ─── */
+  H(0.6, xHall, W2, +h);
+
+  /* ── ② 북쪽 외벽 z=6.6 (침실2 / 창고) ──────────────────────────── */
+  H(xBal, xKit,  zB-W2, -h);   // 침실2 북벽
+  H(xBR,  xHall, zB-W2, -h);   // 창고 북벽
+
+  /* ── ③-a z=3.5 발코니 분리벽 (x=0~1.5) 거실확장 쪽 — 문 개구부(x=0.3~1.2) 제외 ── */
+  H(xL,      0.3,  zLR2-W2, -h);  // 좌측 기둥 (x=0~0.3)
+  H(0.3+DW,  xBal, zLR2-W2, -h);  // 우측 기둥 (x=1.2~1.5)
+
+  /* ── ③-b z=3.5 내벽 (거실↔침실2), x=1.5~5.1 ───────────────────── */
+  H(xBal, xKit, zLR2-W2, -h);  // 거실·연결통로 쪽
+  H(xBal, xKit, zLR2+W2, +h);  // 침실2 쪽
+
+  /* ── ④ z=4.8 욕실 북벽 (연결통로1 쪽만) — 17번 문(x=5.4~6.2) 제외 ── */
+  H(xKit,    5.4,  zBath-W2, -h);   // 좌측 솔리드 (x=5.1~5.4)
+  H(6.2,     xBR,  zBath-W2, -h);   // 우측 솔리드 (x=6.2~7.8)
+
+  /* ── ⑤ z=4.2 창고 남벽 / 연결통로2 북벽 (38번 벽 — 걸레받이 제거됨) ── */
+  // H(xBR+DW, xHall, zM2-W2, -h);   // 38번 벽 연결통로2 쪽 — 사용자 요청으로 제거
+  // H(xBR+DW, xHall, zM2+W2, +h);   // 38번 벽 창고 쪽       — 사용자 요청으로 제거
+
+  /* ── ⑥ z=2.7 침실1 아치벽 (37번 벽 — 걸레받이 제거됨) ─────────────── */
+  // H(xBR+DW, xHall, zM1-W2, -h);   // 37번 벽 침실1 쪽    — 사용자 요청으로 제거
+  // H(xBR+DW, xHall, zM1+W2, +h);   // 37번 벽 연결통로2 쪽 — 사용자 요청으로 제거
+
+  /* ── ⑦ x=7.8 내벽 (주방식당↔침실1), z=0.06~2.76 ─────────────────── */
+  V(W2, zM1+W2, xBR-W2, -h);   // 주방식당 쪽 (서향)
+  V(W2, zM1+W2, xBR+W2, +h);   // 침실1 쪽 (동향)
+
+  /* ── ⑧ x=7.8 창고 좌벽, z=4.14~6.54 ──────────────────────────────
+       서쪽: 연결통로1과 인접하는 구간(~z=4.74)만 / 동쪽: 창고 전체  */
+  V(zM2-W2, zBath-W2, xBR-W2, -h);   // 연결통로1 쪽 (욕실 경계까지)
+  V(zM2-W2, zB-W2,    xBR+W2, +h);   // 창고 쪽 전체
+
+  /* ── ⑨ x=5.1 내벽 (침실2↔연결통로1/욕실) — 문 개구부(3.5~4.4) 제외 ─
+       서쪽(침실2): z=4.4~6.54 / 동쪽(연결통로1): z=4.4~4.74 (욕실 제외) */
+  V(zLR2+DW, zB-W2,    xKit-W2, -h);  // 침실2 쪽
+  V(zLR2+DW, zBath-W2, xKit+W2, +h);  // 연결통로1 쪽
+
+  /* ── ⑩ x=1.5 낮은 벽 (발코니↔침실2), z=3.56~6.54 ─────────────────── */
+  V(zLR2+W2, zB-W2, xBal+W2, +h);  // 침실2 쪽 (동향)
+
+  /* ── ⑪ x=10.5 복도 경계 (침실1+연결통로2+창고 쪽) ────────────────────
+       21번 문(z=2.85~3.75, 복도↔연결통로2) 위치에는 걸레받이 없음 → 2분할 */
+  V(W2,   2.85,    xHall-W2, -h);   // 침실1 + 연결통로2 앞쪽 (z=0.06~2.85)
+  V(3.75, zB-W2,   xHall-W2, -h);   // 연결통로2 뒤쪽 + 창고 (z=3.75~6.54)
+
+  /* ── ⑫ 창고2 (x=0.6~1.5, z=0~0.9) — 66번 벽 +0.2m 이동 적용 ─────── */
+  // 남벽 z=0.9 양면 (문 x=0.7~1.4 제외) + 인덴트 남쪽 외벽 (x=0~0.6)
+  H(0.6,    0.7,  0.9-W2, -h);   // 창고2 측 좌측 기둥 (x=0.6~0.7)
+  H(1.4,    xBal, 0.9-W2, -h);   // 창고2 측 우측 기둥 (x=1.4~1.5)
+  H(xL,     0.7,  0.9+W2, +h);   // 거실확장 측: 인덴트(x=0~0.6) + 좌측 솔리드(x=0.6~0.7) 합침
+  H(1.4,    xBal, 0.9+W2, +h);   // 거실확장 측 우측 기둥 (x=1.4~1.5)
+  // 동벽 x=1.5 양면
+  V(0,      0.9,  xBal-W2, -h);  // 창고2 측 (서면)
+  V(0,      0.9,  xBal+W2, +h);  // 거실 측 (동면)
+  // 서벽 x=0.6 (인덴트 외벽 = 66번 벽) — 창고2 측 (동면)
+  V(0,      0.9,  0.6+W2,  +h);
+
+  /* ── ⑬ 거실↔주방식당 배관 기둥 (x=4.90~5.30, z=0~0.75) ──────────── */
+  V(0,    0.75,  4.90, -h);      // 서면 (거실 쪽)
+  V(0,    0.75,  5.30, +h);      // 동면 (주방식당 쪽)
+  H(4.90, 5.30,  0.75, +h);      // 남면 (개방공간 쪽)
+})();
+
+/* =====================================================================
+   WOOD DOORS + DOOR HANDLES — 침실2 / 창고 / 욕실
+   피벗(Object3D) 기반: 힌지 위치에 피벗, 문·손잡이는 자식으로 추가.
+   _doors[] 에 각 문의 피벗·openRY·isOpen 상태 저장 → 클릭 인터랙션
+===================================================================== */
+var _doors = [];
+(function(){
+  /* ── 목재 질감 캔버스 텍스처 ───────────────────────────────────── */
+  var DCV_W=512, DCV_H=1024;
+  var dcv=document.createElement('canvas');
+  dcv.width=DCV_W; dcv.height=DCV_H;
+  var dc=dcv.getContext('2d');
+  dc.fillStyle='#c8b08a';
+  dc.fillRect(0,0,DCV_W,DCV_H);
+  for(var di=0;di<300;di++){
+    var dlx=Math.random()*DCV_W;
+    var dlalpha=(0.04+Math.random()*0.11).toFixed(3);
+    var dldark=Math.random()<0.38;
+    dc.strokeStyle=dldark?'rgba(90,65,38,'+dlalpha+')':'rgba(210,185,148,'+dlalpha+')';
+    dc.lineWidth=0.4+Math.random()*1.4;
+    dc.beginPath(); dc.moveTo(dlx,0);
+    for(var dly=0;dly<DCV_H;dly+=8){ dlx+=(Math.random()-0.5)*2.8; dc.lineTo(dlx,dly); }
+    dc.stroke();
+  }
+  for(var dj=0;dj<35;dj++){
+    var dbx=Math.random()*DCV_W;
+    var dbalpha=(0.07+Math.random()*0.11).toFixed(3);
+    dc.strokeStyle='rgba(125,95,60,'+dbalpha+')';
+    dc.lineWidth=1.8+Math.random()*3.5;
+    dc.beginPath(); dc.moveTo(dbx,0);
+    for(var dby=0;dby<DCV_H;dby+=14){ dbx+=(Math.random()-0.5)*5; dc.lineTo(dbx,dby); }
+    dc.stroke();
+  }
+  for(var dk=0;dk<25;dk++){
+    var dky=Math.random()*DCV_H;
+    dc.strokeStyle='rgba(180,155,112,'+(0.02+Math.random()*0.04).toFixed(3)+')';
+    dc.lineWidth=1;
+    dc.beginPath(); dc.moveTo(0,dky); dc.lineTo(DCV_W,dky+(Math.random()-0.5)*12); dc.stroke();
+  }
+  var dTex=new THREE.CanvasTexture(dcv);
+  var dMat=new THREE.MeshLambertMaterial({map:dTex, side:THREE.DoubleSide});
+
+  /* ── 스테인리스 손잡이 재질 ──────────────────────────────────────── */
+  var hMat=new THREE.MeshPhongMaterial({color:0xb4b4b4,specular:0x909090,shininess:120});
+  var HY=1.05;
+  var ROSE_R=0.030,ROSE_H=0.007,HUB_R=0.009,HUB_H=0.022;
+  var LEV_R1=0.011,LEV_R2=0.007,LEV_L=0.120;
+  var _Yax=new THREE.Vector3(0,1,0);
+
+  /* ── 피벗 자식에 원통 추가 (로컬 좌표) ──────────────────────────── */
+  function cylP(parent,r1,r2,h,seg,center,axis){
+    var g=new THREE.CylinderGeometry(r1,r2,h,seg);
+    var m=new THREE.Mesh(g,hMat);
+    m.position.copy(center);
+    m.quaternion.setFromUnitVectors(_Yax,axis.clone().normalize());
+    m.castShadow=true;
+    parent.add(m);
+  }
+
+  /* ── 피벗 자식에 레버 손잡이 추가 (로컬 좌표) ──────────────────── */
+  function addHandleLocal(parent,lx,lz,norm,lev){
+    var N=norm.clone().normalize(), L=lev.clone().normalize();
+    var base=new THREE.Vector3(lx,HY,lz);
+    cylP(parent,ROSE_R,ROSE_R,ROSE_H,24,base.clone(),N);
+    var hubC=base.clone().addScaledVector(N,ROSE_H/2+HUB_H/2);
+    cylP(parent,HUB_R,HUB_R,HUB_H,12,hubC,N);
+    var levO=base.clone().addScaledVector(N,ROSE_H/2+HUB_H);
+    cylP(parent,LEV_R1,LEV_R2,LEV_L,10,levO.clone().addScaledVector(L,LEV_L/2),L);
+    var tip=new THREE.Mesh(new THREE.SphereGeometry(LEV_R2,8,6),hMat);
+    tip.position.copy(levO.clone().addScaledVector(L,LEV_L));
+    tip.castShadow=true;
+    parent.add(tip);
+  }
+
+  /* ── 문 + 손잡이 생성 & _doors[] 등록 ──────────────────────────── */
+  function makeDoor(pivX,pivZ, dlx,dlz,dRY,dW, openRY,
+                    h1lx,h1lz,h1N,h1L, h2lx,h2lz,h2N,h2L){
+    var pivot=new THREE.Object3D();
+    pivot.position.set(pivX,0,pivZ);
+    scene.add(pivot);
+
+    var dmesh=new THREE.Mesh(new THREE.PlaneGeometry(dW,DH),dMat);
+    dmesh.position.set(dlx,DH/2,dlz);
+    dmesh.rotation.y=dRY;
+    dmesh.castShadow=true; dmesh.receiveShadow=true;
+    pivot.add(dmesh);
+
+    addHandleLocal(pivot,h1lx,h1lz,h1N,h1L);
+    addHandleLocal(pivot,h2lx,h2lz,h2N,h2L);
+
+    _doors.push({pivot:pivot, doorMesh:dmesh, openRY:openRY, isOpen:false});
+  }
+
+  /* ── ① 침실2 문 ────────────────────────────────────────────────────
+     원래 힌지 방향(-π/2 = 침실2 내부로 열림) 유지하되, 힌지를 벽 71 끝점
+     (5.1, 3.5)에서 10cm 남쪽으로 띄움 → 새 힌지 (5.1, 3.6).
+     이전엔 -π/2 회전 시 패널이 z=3.5 라인을 따라 -x로 펼쳐져 벽 71 속에 묻혔음.
+     이제 패널이 z=3.6 라인을 따라 펼쳐져 벽 71(남면 z=3.56)과 4cm 클리어런스.
+     도어 폭 0.9 → 0.8m로 축소(개구부 z=3.5~4.4 중 북측 10cm를 fill 벽이 채움).
+     패널 로컬: (0, DH/2, 0.40), rot.y=π/2, openRY=-π/2.
+     손잡이 로컬 z=0.65 (자유단 z=0.8에서 안쪽 0.15).
+  ────────────────────────────────────────────────────────────────── */
+  makeDoor(
+    xKit, 3.6,
+    0, 0.40, Math.PI/2, 0.80, -Math.PI/2,
+    -0.004, 0.65, new THREE.Vector3(-1,0,0), new THREE.Vector3(0,0,-1),
+    +0.004, 0.65, new THREE.Vector3(+1,0,0), new THREE.Vector3(0,0,-1)
+  );
+
+  /* ── ② 창고 문 ─────────────────────────────────────────────────────
+     원래 힌지 방향(-π/2 = 복도 방향으로 열림) 유지하되, 힌지를 벽 65 끝점
+     (7.8, 4.2)에서 10cm 동쪽으로 띄움 → 새 힌지 (7.9, 4.2).
+     이전엔 -π/2 회전 시 패널이 x=7.8 라인을 따라 +z로 펼쳐져 벽 65 속에 묻혔음.
+     이제 패널이 x=7.9 라인을 따라 펼쳐져 벽 65(동면 x=7.86)와 4cm 클리어런스.
+     도어 폭 0.9 → 0.8m로 축소(개구부 x=7.8~8.7 중 서측 10cm를 fill 벽이 채움).
+     패널 로컬: (0.40, DH/2, 0), rot.y=0, openRY=-π/2.
+     손잡이 로컬 x=0.65 (자유단 x=0.8에서 안쪽 0.15).
+  ────────────────────────────────────────────────────────────────── */
+  makeDoor(
+    7.9, zM2,
+    0.40, 0, 0, 0.80, -Math.PI/2,
+    +0.65, -0.004, new THREE.Vector3(0,0,-1), new THREE.Vector3(-1,0,0),
+    +0.65, +0.004, new THREE.Vector3(0,0,+1), new THREE.Vector3(-1,0,0)
+  );
+
+  /* ── ③ 욕실 문 ── 사진 참고: 토프색 솔리드 + 펜타곤 창문 + 피프홀 ──
+     개구부 z=4.8, x=5.4~6.2 | 힌지 x=5.4 (왼쪽)
+     욕실 안에서 보면 힌지가 우측, 핸들이 좌측, 창문이 우상단
+     openRY=-π/2 → -Z 방향으로 열림 (주방 방향, 바깥쪽)
+  ────────────────────────────────────────────────────────────────── */
+  (function(){
+    var pivX = xKit + 0.3, pivZ = zBath;   // (5.4, 4.8)
+    var dW   = 0.8, dH = DH;
+    var dT   = 0.045;                       // 두께 4.5cm
+
+    var pivot = new THREE.Object3D();
+    pivot.position.set(pivX, 0, pivZ);
+    scene.add(pivot);
+
+    // 재질
+    var mPanel = new THREE.MeshLambertMaterial({color:0xa8957d}); // 토프 (따뜻한 회갈색)
+    var mGlass = new THREE.MeshPhongMaterial({                    // 펜타곤 유리창
+      color:0xc8d8e0, transparent:true, opacity:0.30,
+      specular:0xffffff, shininess:90, side:THREE.DoubleSide
+    });
+
+    // 펜타곤 치수 (집 모양: 직사각형 하부 + 위쪽 삼각형 첨두)
+    var winW  = 0.085;
+    var winRH = 0.075;                    // 직사각형 부분 높이
+    var winTH = 0.045;                    // 삼각형 부분 높이
+    var winX  = 0.23;                     // 힌지 쪽 가장자리에서 23cm 안
+    var winYR = dH - 0.30;                // 직사각형 중심 y
+    var pyB   = winYR - winRH/2;          // 펜타곤 하단
+    var pyT   = winYR + winRH/2;          // 직사각형 상단(삼각형 시작)
+    var pyP   = pyT + winTH;              // 삼각형 첨두
+
+    // 1) 도어 본체 — ExtrudeGeometry + 펜타곤 구멍 (관통)
+    var panelShape = new THREE.Shape();
+    panelShape.moveTo(0,  0);
+    panelShape.lineTo(dW, 0);
+    panelShape.lineTo(dW, dH);
+    panelShape.lineTo(0,  dH);
+    panelShape.lineTo(0,  0);
+    var pHole = new THREE.Path();
+    pHole.moveTo(winX - winW/2, pyB);
+    pHole.lineTo(winX + winW/2, pyB);
+    pHole.lineTo(winX + winW/2, pyT);
+    pHole.lineTo(winX,          pyP);
+    pHole.lineTo(winX - winW/2, pyT);
+    pHole.lineTo(winX - winW/2, pyB);
+    panelShape.holes.push(pHole);
+    var panelGeo = new THREE.ExtrudeGeometry(panelShape, {
+      depth: dT, bevelEnabled: false
+    });
+    var panel = new THREE.Mesh(panelGeo, mPanel);
+    panel.position.set(0, 0, -dT/2);   // 두께 중심을 z=0에
+    panel.castShadow = true;
+    panel.receiveShadow = true;
+    pivot.add(panel);
+
+    // 2) 펜타곤 유리 패널 (구멍 안에 끼움)
+    var glassShape = new THREE.Shape();
+    glassShape.moveTo(winX - winW/2, pyB);
+    glassShape.lineTo(winX + winW/2, pyB);
+    glassShape.lineTo(winX + winW/2, pyT);
+    glassShape.lineTo(winX,          pyP);
+    glassShape.lineTo(winX - winW/2, pyT);
+    glassShape.lineTo(winX - winW/2, pyB);
+    var glassMesh = new THREE.Mesh(new THREE.ShapeGeometry(glassShape), mGlass);
+    glassMesh.position.set(0, 0, 0);   // 도어 두께 중앙
+    pivot.add(glassMesh);
+
+    // 4) 레버 손잡이 (자유단 쪽, 양면) — 기존 헬퍼 사용
+    addHandleLocal(pivot, +0.65, -dT/2 - 0.001,
+      new THREE.Vector3(0,0,-1), new THREE.Vector3(-1,0,0));
+    addHandleLocal(pivot, +0.65, +dT/2 + 0.001,
+      new THREE.Vector3(0,0,+1), new THREE.Vector3(-1,0,0));
+
+    // _doors[] 등록 — panel을 doorMesh로 사용 (raycast 가능)
+    _doors.push({pivot:pivot, doorMesh:panel, openRY:-Math.PI/2, isOpen:false});
+  })();
+
+  /* ── ④ 창고2 문 ────────────────────────────────────────────────────
+     개구부 z=0.9, x=0.7~1.4 (폭 0.7m) | 힌지 x=0.7 (왼쪽)
+     66번 벽 이동(+0.2m)으로 창고2가 좁아져 문 폭도 0.9 → 0.7m로 축소
+     openRY=-π/2 → +Z 방향으로 열림 (거실확장 쪽, 창고2 바깥쪽)
+     손잡이 로컬 x=+0.55 (래치 끝 x=1.25 - 피벗 x=0.7)
+  ────────────────────────────────────────────────────────────────── */
+  makeDoor(
+    0.7, 0.9,
+    0.35, 0, 0, 0.7, -Math.PI/2,
+    +0.55, -0.004, new THREE.Vector3(0,0,-1), new THREE.Vector3(-1,0,0),
+    +0.55, +0.004, new THREE.Vector3(0,0,+1), new THREE.Vector3(-1,0,0)
+  );
+
+  /* ── ④ 발코니 문 (거실확장 ↔ 발코니) ──────────────────────────────
+     개구부 z=3.5, x=0.3~1.2 (폭 DW=0.9m) | 힌지 x=1.2 (오른쪽)
+     문고리: 거실에서 볼 때 왼쪽 (x=0.3 쪽 = 자유단)
+     openRY=+π/2 → +Z 방향으로 열림 (발코니 안쪽, 거실에서 볼 때 시계방향)
+     외관: 흰색 알루미늄 프레임 + 반투명 유리 패널 (이미지 참고)
+  ────────────────────────────────────────────────────────────────── */
+  (function(){
+    var pivX = 0.3 + DW;   // = 1.2  힌지 위치 (개구부 오른쪽 끝)
+    var pivZ = zLR2;
+
+    var pivot = new THREE.Object3D();
+    pivot.position.set(pivX, 0, pivZ);
+    scene.add(pivot);
+
+    // 재질 —————————————————————————————————————————————————————
+    var mFrm = new THREE.MeshLambertMaterial({color:0xf4f2f0, side:THREE.DoubleSide}); // 흰색 프레임
+    var mGls = new THREE.MeshLambertMaterial({                                          // 반투명 유리
+      color:0xdce8f4, transparent:true, opacity:0.70, side:THREE.DoubleSide
+    });
+
+    // 치수 (로컬 좌표: 힌지=원점, 문은 -x 방향으로 DW 연장) ————————
+    var FW = 0.050;          // 프레임 폭 (좌·우·상단)
+    var BH = 0.080;          // 하단 레일 높이 (베란다 문 특유의 굵은 하단)
+    var TD = WT;             // 문판 두께 (벽 두께와 동일)
+    var sH = DH - BH - FW;  // 세로대·유리 높이 = 2.05-0.08-0.05 = 1.92m
+
+    function bx(w,h,d,mat,lx,ly,lz){
+      var m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+      m.position.set(lx,ly,lz);
+      m.castShadow=true; m.receiveShadow=true;
+      pivot.add(m);
+    }
+
+    // 하단 레일 (전체 폭, 굵음)
+    bx(DW,       BH,   TD,      mFrm, -DW/2,       BH/2,      0);
+    // 상단 레일
+    bx(DW,       FW,   TD,      mFrm, -DW/2,       DH-FW/2,   0);
+    // 자유단 세로대 (거실에서 볼 때 왼쪽 = 손잡이 쪽)
+    bx(FW,       sH,   TD,      mFrm, -DW+FW/2,    BH+sH/2,   0);
+    // 힌지 쪽 세로대 (오른쪽)
+    bx(FW,       sH,   TD,      mFrm, -FW/2,       BH+sH/2,   0);
+    // 유리 패널 (프레임 안 전체, 얇은 박스)
+    bx(DW-FW*2,  sH,   TD*0.25, mGls, -DW/2,       BH+sH/2,   0);
+
+    // 레이캐스트용 비가시 패널 ————————————————————————————————
+    var dmesh=new THREE.Mesh(
+      new THREE.PlaneGeometry(DW, DH),
+      new THREE.MeshBasicMaterial({visible:false, side:THREE.DoubleSide})
+    );
+    dmesh.position.set(-DW/2, DH/2, 0);
+    pivot.add(dmesh);
+
+    // 손잡이 (거실·발코니 양면) ——————————————————————————————
+    // 위치: 자유단 쪽 (local x=-0.75), 레버 방향: 힌지 쪽 (+x)
+    addHandleLocal(pivot, -0.75, -0.004,
+      new THREE.Vector3(0,0,-1), new THREE.Vector3(+1,0,0));  // 거실 측
+    addHandleLocal(pivot, -0.75, +0.004,
+      new THREE.Vector3(0,0,+1), new THREE.Vector3(+1,0,0));  // 발코니 측
+
+    _doors.push({pivot:pivot, doorMesh:dmesh, openRY:Math.PI/2, isOpen:false});
+  })();
+
+})();
+
+/* =====================================================================
+   ROOM LABELS  (canvas textures on floor)
+===================================================================== */
+function makeLabel(text, x, z) {
+  var cv = document.createElement('canvas');
+  cv.width = 256; cv.height = 96;
+  var ctx = cv.getContext('2d');
+  ctx.fillStyle = 'rgba(0,0,0,0.58)';
+  ctx.font = 'bold 30px "Malgun Gothic","Apple SD Gothic Neo",sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 128, 48);
+  var tex = new THREE.CanvasTexture(cv);
+  var mesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.5, .56),
+    new THREE.MeshBasicMaterial({map:tex, transparent:true, depthWrite:false, side:THREE.DoubleSide})
+  );
+  mesh.rotation.x = -Math.PI/2;
+  mesh.position.set(x, FT+.005, z);
+  scene.add(mesh);
+}
+makeLabel('발코니',    0.75,  5.05);
+makeLabel('거실',      3.3,   1.35);
+makeLabel('주방·식당', 6.45,  1.35);
+makeLabel('침실 1',    9.15,  1.35);
+makeLabel('복도',      11.25, 2.1 );
+makeLabel('침실 2',    3.3,   4.65);
+makeLabel('욕실',      6.45,  5.7 );
+makeLabel('창고',      9.15,  5.4 );
+
+/* =====================================================================
+   ROOM LIGHTS
+===================================================================== */
+// PointLight 강도: 기존 대비 ×0.55 수준으로 축소
+// ambient(0.18) + sun(~0.14) + pointLight(~0.35 피크) ≈ 0.67 → 텍스처 선명하게 보임
+// LIGHTING.rooms 데이터를 PointLight 로 일괄 적용 (항목 W).
+// 천장 부근 y = CH - 0.18 = 2.22.
+LIGHTING.rooms.forEach(function(r){
+  ptLight(r.x, CH - 0.18, r.z, r.color, r.intensity, r.range);
+});
+
+</script>
+<script src="furniture.js"></script>
+<script>
+"use strict";
+/* =====================================================================
+   WALLPAPER  — 거실·주방식당·침실1·창고·침실2 내벽
+   욕실·발코니·복도 제외
+===================================================================== */
+(function(){
+  // 텍스처: 아치 스팬드럴에서 미리 생성한 _wpTex 재사용 (동일 벽지)
+  var mWP=new THREE.MeshLambertMaterial({map:_wpTex, side:THREE.FrontSide});
+  var WH=CH-FT, WY=FT+WH/2, E=0.003;
+  var PI=Math.PI, Q=Math.PI/2;
+  // 창문 공통 치수
+  var wBot=0.9, wTop=2.0, wHgt=wTop-wBot;
+  var wz1=0.735, wz2=2.085;          // 침실1 창문 z 범위 (1.5x 확장)
+  var sz1=4.665, sz2=6.015;          // 창고 창문 z 범위 (1.5x 확장)
+  var szS=zM2-WT/2, szE=zB-WT/2;    // 창고 벽 z 범위 (4.14 ~ 6.54)
+  var zSL=szE-szS, zSC=(szS+szE)/2; // 창고 z 길이(≈2.4), 중심(5.34)
+
+  function WP(w,h,x,y,z,ry){
+    var m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),mWP);
+    m.position.set(x,y,z); m.rotation.y=ry; scene.add(m);
+  }
+
+  // ━━ 거실 (x=0~5.1, z=0~3.5) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 인덴트 (x=0~0.6) 적용으로 z=0 외벽은 x=0.6부터 시작
+  WP(xKit-0.6,      WH, (0.6+xKit)/2,       WY, WT/2+E,       0  ); // 앞면 z=0 (x=0.6~5.1)
+  // 왼쪽 x=0 : 바닥~천장 베란다창(유리①)이 전 구간을 차지하므로 벽지 없음
+  // (발코니 측 유리②도 동일하게 벽지 없음 → 두 구간 모두 유리가 그대로 보임)
+  // 뒷면 z=3.5 (거실 측 내면): 발코니 분리벽(문 있음) + 침실2 상단 솔리드
+  WP(0.3,           WH, 0.15,               WY, zLR2-WT/2-E,   PI ); // 분리벽 좌
+  WP(0.3,           WH, 1.35,               WY, zLR2-WT/2-E,   PI ); // 분리벽 우
+  WP(DW,        CH-DH,  0.75,  DH+(CH-DH)/2, zLR2-WT/2-E,     PI ); // 문 인방
+  WP(xKit-xBal,     WH, (xBal+xKit)/2,      WY, zLR2-WT/2-E,   PI ); // 침실2 상단
+
+  // ━━ 주방식당 (x=5.1~7.8, z=0~4.8) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  WP(xBR-xKit,      WH, (xKit+xBR)/2,       WY, WT/2+E,       0  ); // 앞면 z=0
+  WP(zM1,           WH, xBR-WT/2-E,         WY, WT/2+zM1/2,  -Q  ); // 오른쪽 x=7.8
+  // 뒷면 z=4.8 (욕실 상단 벽, 주방 측): 문 x=5.4~6.2
+  WP(0.3,           WH, xKit+0.15,          WY, zBath-WT/2-E, PI ); // 좌(x=5.1~5.4)
+  WP(1.6,           WH, (6.2+xBR)/2,        WY, zBath-WT/2-E, PI ); // 우(x=6.2~7.8)
+  WP(0.8,       CH-DH,  5.8,  DH+(CH-DH)/2, zBath-WT/2-E,    PI ); // 욕실 문 인방
+  // 왼쪽 x=5.1 (침실2 우측 벽 주방 측, z=3.5~4.8): 문 z=3.6~4.4 (북측 10cm fill)
+  WP(0.10,          WH, xKit+WT/2+E, WY, 3.55,                 Q  ); // 솔리드 (북측 fill)
+  WP(0.80,      CH-DH,  xKit+WT/2+E, DH+(CH-DH)/2, 4.00,       Q  ); // 문 인방 (폭 0.8)
+  WP(zBath-zLR2-DW, WH, xKit+WT/2+E, WY, (zLR2+DW+zBath)/2,   Q  ); // 솔리드 (남측 z=4.4~4.8)
+  // x=7.8 (창고 좌측 벽 주방식당 측, z=4.2~4.8)
+  WP(zBath-zM2,     WH, xBR-WT/2-E,         WY, (zM2+zBath)/2, -Q ); // 창고벽
+
+  // ━━ 침실1 (x=7.8~10.5, z=0~2.7) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  WP(xHall-xBR,     WH, (xBR+xHall)/2,      WY, WT/2+E,       0  ); // 앞면 z=0
+  WP(zM1,           WH, xBR+WT/2+E,         WY, WT/2+zM1/2,   Q  ); // 왼쪽 x=7.8
+  // 뒷면 z=2.7 (침실1 아래 문 벽): 문 x=7.8~8.7
+  WP(xHall-xBR-DW,  WH, (xBR+DW+xHall)/2,  WY, zM1-WT/2-E,   PI ); // 솔리드
+  WP(DW,        CH-DH,  xBR+DW/2, DH+(CH-DH)/2, zM1-WT/2-E,  PI ); // 문 인방
+  // 오른쪽 x=10.5 창문 벽 (침실1 측): z=0.06~2.76, 창문 z=0.96~1.86 y=0.9~2.0
+  var rwx=xHall-WT/2-E;
+  WP(zM1,       wBot-FT, rwx, FT+(wBot-FT)/2,     WT/2+zM1/2,       -Q ); // 창대
+  WP(wz1-WT/2,    wHgt,  rwx, wBot+wHgt/2,         (WT/2+wz1)/2,    -Q ); // 창 왼쪽
+  WP(zM1+WT/2-wz2,wHgt,  rwx, wBot+wHgt/2,         (wz2+zM1+WT/2)/2,-Q ); // 창 오른쪽
+  WP(zM1,       CH-wTop, rwx, wTop+(CH-wTop)/2,     WT/2+zM1/2,      -Q ); // 인방
+
+  // ━━ 창고 (x=7.8~10.5, z=4.2~6.6) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  WP(xHall-xBR,     WH, (xBR+xHall)/2,      WY, zB-WT/2-E,    PI ); // 뒷면 z=6.6
+  WP(zSL,           WH, xBR+WT/2+E,         WY, zSC,           Q  ); // 왼쪽 x=7.8
+  // 앞면 z=4.2 (창고 위 문 벽): 문 x=7.9~8.7 (서측 10cm fill)
+  WP(0.10,          WH, 7.85,             WY, zM2+WT/2+E,   0  ); // 솔리드 (서측 fill)
+  WP(0.80,      CH-DH,  8.30, DH+(CH-DH)/2, zM2+WT/2+E,    0  ); // 문 인방 (폭 0.8)
+  WP(xHall-xBR-DW,  WH, (xBR+DW+xHall)/2,  WY, zM2+WT/2+E,   0  ); // 솔리드 (동측 x=8.7~10.5)
+  // 오른쪽 x=10.5 창문 벽 (창고 측): z=4.14~6.54, 창문 z=4.89~5.79
+  WP(zSL,       wBot-FT, xHall-WT/2-E, FT+(wBot-FT)/2, zSC,   -Q ); // 창대
+  WP(sz1-szS,     wHgt,  xHall-WT/2-E, wBot+wHgt/2, (szS+sz1)/2, -Q); // 창 앞쪽
+  WP(szE-sz2,     wHgt,  xHall-WT/2-E, wBot+wHgt/2, (sz2+szE)/2, -Q); // 창 뒤쪽
+  WP(zSL,       CH-wTop, xHall-WT/2-E, wTop+(CH-wTop)/2, zSC,  -Q ); // 인방
+
+  // ━━ 침실2 (x=1.5~5.1, z=3.5~6.6) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  WP(xKit-xBal,     WH, (xBal+xKit)/2,      WY, zB-WT/2-E,    PI ); // 뒷면 z=6.6
+  WP(xKit-xBal,     WH, (xBal+xKit)/2,      WY, zLR2+WT/2+E,  0  ); // 앞면 z=3.5 (침실2 측)
+  // 왼쪽 x=1.5 (발코니 격벽 침실2 측) — 창문 영역(z=4.05~6.05, y=0.9~2.1) 제외
+  var bx2=xBal+WT/2+E;
+  var wz1b=4.05, wz2b=6.05, wsb=0.9, wtb=2.1;
+  var z1b=zLR2+WT/2, z2b=zB-WT/2;
+  WP(wz1b-z1b,    WH,       bx2, WY,               (z1b+wz1b)/2,  Q); // 앞쪽 솔리드
+  WP(z2b-wz2b,    WH,       bx2, WY,               (wz2b+z2b)/2,  Q); // 뒤쪽 솔리드
+  WP(wz2b-wz1b,   wsb-FT,   bx2, FT+(wsb-FT)/2,    (wz1b+wz2b)/2, Q); // 창 아래
+  WP(wz2b-wz1b,   CH-wtb,   bx2, wtb+(CH-wtb)/2,   (wz1b+wz2b)/2, Q); // 창 위 인방
+  // 오른쪽 x=5.1 (침실2 우측 벽 침실2 측): 문 z=3.6~4.4 (북측 10cm fill)
+  WP(0.10,          WH, xKit-WT/2-E, WY, 3.55,               -Q  ); // 솔리드 (북측 fill)
+  WP(zB-WT/2-4.4,   WH, xKit-WT/2-E, WY, (4.4+zB-WT/2)/2,    -Q  ); // 솔리드 (남측 z=4.4~6.54)
+  WP(0.80,      CH-DH,  xKit-WT/2-E, DH+(CH-DH)/2, 4.00,     -Q  ); // 문 인방 (폭 0.8)
+
+  // ━━ 창고2 (x=0.6~1.5, z=0~0.9) — 66번 벽 +0.2m 이동 적용 ━━━━━━━━━━
+  // 남벽 z=0.9 양면 (문 x=0.7~1.4 제외, 좌/우 솔리드 각 0.1m, 문 폭 0.7m)
+  // ─ 창고2 측 (북면, z=0.9-WT/2-E)
+  WP(0.1,           WH, 0.65,               WY, 0.9-WT/2-E,   PI ); // 좌측 솔리드 x=0.6~0.7
+  WP(0.1,           WH, 1.45,               WY, 0.9-WT/2-E,   PI ); // 우측 솔리드 x=1.4~1.5
+  WP(0.7,       CH-DH,  1.05,  DH+(CH-DH)/2, 0.9-WT/2-E,     PI ); // 문 인방 (폭 0.7, 중심 1.05)
+  // ─ 거실확장 측 (남면, z=0.9+WT/2+E) — 인덴트 외벽(x=0~0.6) + 창고2 좌측(x=0.6~0.7) 합침
+  WP(0.7,           WH, 0.35,               WY, 0.9+WT/2+E,   0  ); // 인덴트+좌측 솔리드 x=0~0.7
+  WP(0.1,           WH, 1.45,               WY, 0.9+WT/2+E,   0  ); // 우측 솔리드 x=1.4~1.5
+  WP(0.7,       CH-DH,  1.05,  DH+(CH-DH)/2, 0.9+WT/2+E,     0  ); // 문 인방 (폭 0.7, 중심 1.05)
+  // 동벽 x=1.5 양면
+  WP(0.9,           WH, xBal-WT/2-E,        WY, 0.45,         -Q ); // 창고2 측 (서면)
+  WP(0.9,           WH, xBal+WT/2+E,        WY, 0.45,          Q ); // 거실 측 (동면)
+  // 서벽 x=0.6 (인덴트 외벽 = 66번 벽) 동면 — 창고2 측에서 보이는 면
+  WP(0.9,           WH, 0.6+WT/2+E,         WY, 0.45,          Q ); // 창고2 측 (동면)
+
+  // ━━ 거실↔주방식당 배관 기둥 (x=4.90~5.30, z=0~0.75) ━━━━━━━━━━━━━━━━
+  WP(0.75,          WH, 4.90-E,             WY, 0.375,        -Q ); // 서면 (거실 쪽)
+  WP(0.75,          WH, 5.30+E,             WY, 0.375,         Q ); // 동면 (주방식당 쪽)
+  WP(0.40,          WH, 5.10,               WY, 0.75+E,        0 ); // 남면 (개방공간 쪽)
+})();
+
+/* =====================================================================
+   @FURN#58 수납장(A 컬럼), @FURN#59 냉장고(B+C 컬럼) — 키친핏 일체형
+   키친핏 냉장고·수납 일체형 유닛
+   욕실 문(z=4.8, x=5.4~6.2) 오른편 벽 / 욕실 바깥(주방·복도 방향)
+   A+B 컬럼 (냉장고 양문형, 0.60+0.45=1.05m) + C 컬럼 (수납장, 0.45m) = 1.50m
+   x=6.25~7.75 / z=4.14~4.74 (깊이 0.60m) / y=FT~CH
+===================================================================== */
+(function(){
+  /* ── 위치·치수 ──────────────────────────────────────────────────── */
+  var ux0 = 6.25;                // unit 왼쪽 x
+  var uZb = zBath - WT/2;        // 등면 z = 4.74 (욕실 벽 주방쪽 면)
+  var uD  = 0.600;               // 깊이
+  var uZf = uZb - uD;            // 전면 z = 4.14
+  var uZc = uZb - uD/2;          // 중심 z = 4.44
+  var uH  = CH - FT;             // 높이 = 2.35 m (바닥면~천장)
+  var uCY = FT + uH/2;           // 높이 중심 y = 1.225
+
+  /* ── 컬럼 폭 ────────────────────────────────────────────────────── */
+  var wA=0.60, wB=0.45, wC=0.45;            // A+B+C = 1.50 m
+  var xcA = ux0 + wA/2;                     // 6.55
+  var xcB = ux0 + wA + wB/2;               // 7.075
+  var xcC = ux0 + wA + wB + wC/2;          // 7.525
+
+  /* ── 상수 ───────────────────────────────────────────────────────── */
+  var GT = 0.0035;   // 갭 선 두께 3.5 mm
+  var DT = 0.013;    // 도어 패널 전면 돌출 두께
+
+  /* ── 재질 ───────────────────────────────────────────────────────── */
+  var mCrc = new THREE.MeshLambertMaterial({color:0xd8d8d8});
+  var mDr  = new THREE.MeshLambertMaterial({color:0xf3f3f1});
+  var mGap = new THREE.MeshLambertMaterial({color:0x121212});
+  var mSS  = new THREE.MeshPhongMaterial({color:0xc6c6c6, specular:0x909090, shininess:70});
+  var mGls = new THREE.MeshPhongMaterial({color:0x050509, specular:0x1e2530, shininess:130,
+               transparent:true, opacity:0.87});
+  var mHnd = new THREE.MeshPhongMaterial({color:0xaaaaaa, specular:0xdcdcdc, shininess:190});
+  var mCtl = new THREE.MeshPhongMaterial({color:0xb8b8b8, specular:0x666666, shininess:40});
+  var mLed = new THREE.MeshBasicMaterial({color:0x3355bb});
+  var mInner = new THREE.MeshLambertMaterial({color:0xfafafa});  // 냉장고 내부 흰색 라이닝
+  var mShelf = new THREE.MeshPhongMaterial({                     // 글래스 선반
+    color:0xe0e8ee, specular:0xfafafa, shininess:140,
+    transparent:true, opacity:0.55, side:THREE.DoubleSide
+  });
+
+  /* 5면 중공 캐비닛 헬퍼 — 전면 개방 (문이 열렸을 때 내부 노출)
+     A/B 냉장고 컬럼 전용. C 컬럼(오븐 포함)은 기존 솔리드 박스 유지.    */
+  function hollowFridgeColumn(x1, x2, y1, y2, z1, z2, addShelves){
+    var w  = x2-x1, h = y2-y1, d = z2-z1;
+    var cx = (x1+x2)/2, cy = (y1+y2)/2, cz = (z1+z2)/2;
+    var pt = 0.018;                                  // 패널 두께
+    B(w,         h,        pt,    mInner, cx,      cy,         z2-pt/2);  // 후판
+    B(w-pt*2,    pt,       d-pt,  mInner, cx,      y2-pt/2,    cz-pt/2);  // 상판
+    B(w-pt*2,    pt,       d-pt,  mInner, cx,      y1+pt/2,    cz-pt/2);  // 하판
+    B(pt,        h-pt*2,   d-pt,  mInner, x1+pt/2, cy,         cz-pt/2);  // 좌측판
+    B(pt,        h-pt*2,   d-pt,  mInner, x2-pt/2, cy,         cz-pt/2);  // 우측판
+    if (addShelves){
+      // 3단 글래스 선반 (1/4, 2/4, 3/4 높이)
+      for (var i = 1; i <= 3; i++){
+        var shY = y1 + (i / 4) * h;
+        B(w-pt*2-0.005, 0.010, d-pt-0.020, mShelf, cx, shY, cz-pt/2);
+      }
+    }
+  }
+
+  /* ── 본체 ──────────────────────────────────────────────────────────
+     A·B·C 모두 5면 중공 → 문이 열리면 내부 보임
+     A = 수납장 (전고 단일 도어) / B·C = 냉장고 (양문형, 가운데서 열림)  */
+  hollowFridgeColumn(ux0,         ux0+wA,         FT, CH, uZf, uZb, true);  // A
+  hollowFridgeColumn(ux0+wA,      ux0+wA+wB,      FT, CH, uZf, uZb, true);  // B
+  hollowFridgeColumn(ux0+wA+wB,   ux0+wA+wB+wC,   FT, CH, uZf, uZb, true);  // C
+
+  /* ── 수직 갭 선 (컬럼 경계 + 좌우 테두리) ──────────────────────── */
+  var gfZ = uZf - GT/2;
+  B(GT, uH, GT*3, mGap, ux0,           uCY, gfZ);   // 왼쪽 테두리
+  B(GT, uH, GT*3, mGap, ux0+wA,        uCY, gfZ);   // A-B 경계
+  B(GT, uH, GT*3, mGap, ux0+wA+wB,     uCY, gfZ);   // B-C 경계
+  B(GT, uH, GT*3, mGap, ux0+1.50,      uCY, gfZ);   // 오른쪽 테두리
+
+  /* ── 수평 갭 선 (상·하단 테두리) ───────────────────────────────── */
+  var gW = 1.50 - GT*2;
+  B(gW, GT, GT*3, mGap, ux0+0.75, FT+GT/2, gfZ);   // 하단
+  B(gW, GT, GT*3, mGap, ux0+0.75, CH-GT/2, gfZ);   // 상단
+
+  /* ── 도어 패널 — 피벗 기반 인터랙티브 (클릭으로 여닫기) ──────────── */
+  // hingeSide: 'left' = 왼쪽 힌지(패널 +x로 연장, openRY=+π/2 → −z 열림)
+  //            'right'= 오른쪽 힌지(패널 −x로 연장, openRY=−π/2 → −z 열림)
+  // 피벗 z=uZf (전면), 패널 z=−DT/2 로 패널 뒷면이 z=uZf와 일치
+  function makeCabDoor(hingeX, hingeSide, panelW, panelH, panelCY){
+    var pivot = new THREE.Object3D();
+    pivot.position.set(hingeX, 0, uZf);
+    scene.add(pivot);
+    var dlx = (hingeSide === 'left') ? panelW/2 : -panelW/2;
+    var panel = new THREE.Mesh(
+      new THREE.BoxGeometry(panelW, panelH, DT),
+      mDr
+    );
+    panel.position.set(dlx, panelCY, -DT/2);
+    panel.castShadow = true;
+    pivot.add(panel);
+    var openRY = (hingeSide === 'left') ? Math.PI/2 : -Math.PI/2;
+    _doors.push({pivot:pivot, doorMesh:panel, openRY:openRY, isOpen:false});
+  }
+
+  // A 컬럼 — 수납장 전고 단일 도어, 힌지 우 (문 26)
+  makeCabDoor(ux0 + wA - GT,           'right', wA-GT*2, uH-GT*2, uCY);
+  // B 컬럼 — 냉장고 좌측 문, 힌지 좌 (양문형 좌측, 문 27)
+  makeCabDoor(ux0 + wA + GT,           'left',  wB-GT*2, uH-GT*2, uCY);
+  // C 컬럼 — 냉장고 우측 문, 힌지 우 (양문형 우측, 문 28)
+  makeCabDoor(ux0 + wA + wB + wC - GT, 'right', wC-GT*2, uH-GT*2, uCY);
+
+})();
+
+/* =====================================================================
+   복도 외부 문 (문 29) + 아파트 현관문/방화문 (문 30)
+   _doors[13] = 외벽 z=0 갭 단순 도어
+   _doors[14] = 한국 아파트 표준 방화문 (복도 ↔ 연결통로2)
+   두 도어 모두 _doors[]에 푸시되어 라벨 일관성 유지 (DOORS[13],[14] 일치)
+===================================================================== */
+
+// 공용 헬퍼: 단순 레버 손잡이 (양면) — addHandleLocal 외부 스코프 대체
+(function(){
+  function addLever(parent, lx, ly, lz, norm, lev){
+    var hMat = new THREE.MeshPhongMaterial({color:0xb4b4b4, specular:0x909090, shininess:120});
+    var N = norm.clone().normalize();
+    var L = lev.clone().normalize();
+    var Y = new THREE.Vector3(0,1,0);
+    var ROSE_R=0.030, ROSE_H=0.007, HUB_R=0.009, HUB_H=0.022;
+    var LEV_R1=0.011, LEV_R2=0.007, LEV_L=0.120;
+    function cylP(r1,r2,h,seg, center, axis){
+      var g = new THREE.CylinderGeometry(r1,r2,h,seg);
+      var m = new THREE.Mesh(g, hMat);
+      m.position.copy(center);
+      m.quaternion.setFromUnitVectors(Y, axis.clone().normalize());
+      m.castShadow = true;
+      parent.add(m);
+    }
+    var base = new THREE.Vector3(lx, ly, lz);
+    cylP(ROSE_R, ROSE_R, ROSE_H, 24, base.clone(), N);
+    var hubC = base.clone().addScaledVector(N, ROSE_H/2 + HUB_H/2);
+    cylP(HUB_R, HUB_R, HUB_H, 12, hubC, N);
+    var levO = base.clone().addScaledVector(N, ROSE_H/2 + HUB_H);
+    cylP(LEV_R1, LEV_R2, LEV_L, 10, levO.clone().addScaledVector(L, LEV_L/2), L);
+    var tip = new THREE.Mesh(new THREE.SphereGeometry(LEV_R2, 8, 6), hMat);
+    tip.position.copy(levO.clone().addScaledVector(L, LEV_L));
+    tip.castShadow = true;
+    parent.add(tip);
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // _doors[13] — 문 29 (복도 외벽 z=0 갭, 단순 인테리어 도어로 활성화)
+  //   개구부 x=10.8~11.7, z=0 | 힌지 x=10.8 (좌측)
+  //   panel 로컬 (DW/2, DH/2, 0) rot.y=0 → +x 방향 확장
+  //   openRY=-π/2 → +z 방향(복도 안쪽)으로 열림
+  // ─────────────────────────────────────────────────────────────────
+  (function(){
+    var pivX = 10.8, pivZ = 0;
+    var dW = DW, dH = DH, dT = 0.040;
+    var pivot = new THREE.Object3D();
+    pivot.position.set(pivX, 0, pivZ);
+    scene.add(pivot);
+
+    var mPanel = new THREE.MeshLambertMaterial({color:0xc8b08a});  // 우드톤
+    var panel = new THREE.Mesh(
+      new THREE.BoxGeometry(dW, dH, dT),
+      mPanel
+    );
+    panel.position.set(dW/2, dH/2, 0);
+    panel.castShadow = true;
+    panel.receiveShadow = true;
+    pivot.add(panel);
+
+    // 손잡이 — 자유단(x=DW=0.9)에 양면
+    addLever(pivot, dW - 0.07, 1.05, -dT/2 - 0.001,
+             new THREE.Vector3(0, 0, -1), new THREE.Vector3(-1, 0, 0));
+    addLever(pivot, dW - 0.07, 1.05, +dT/2 + 0.001,
+             new THREE.Vector3(0, 0, +1), new THREE.Vector3(-1, 0, 0));
+
+    _doors.push({pivot:pivot, doorMesh:panel, openRY:-Math.PI/2, isOpen:false});
+  })();
+
+  // ─────────────────────────────────────────────────────────────────
+  // _doors[14] — 문 30 (한국 아파트 현관문/방화문, 복도 ↔ 연결통로2)
+  //   개구부 z=2.85~3.75, x=10.5 | 힌지 z=3.75 (남쪽 끝, 이전 z=2.85에서 반대편 이동)
+  //   panel 로컬 (0, dH/2, -dW/2) rot.y=π/2 → -z 방향 확장 (자유단 z=2.85)
+  //   openRY=-π/2 → +x 방향(복도)으로 열림
+  //   특징: 베이지 메탈 패널, 가로 분할 트림, 피프홀, 도어 클로저
+  // ─────────────────────────────────────────────────────────────────
+  (function(){
+    var pivX = xHall, pivZ = 3.75;        // (10.5, 3.75) — 힌지 반대쪽 이동
+    var dW = DW;                            // 0.9m
+    var dH = DH;                            // 도어 높이
+    var dT = 0.060;                         // 두께 6cm (방화문은 두꺼움)
+    var pivot = new THREE.Object3D();
+    pivot.position.set(pivX, 0, pivZ);
+    scene.add(pivot);
+
+    // 재질 — 한국 아파트 표준 톤 (베이지 + 어두운 트림)
+    var mPanel = new THREE.MeshLambertMaterial({color:0x9c8467});  // 베이지 브라운
+    var mTrim  = new THREE.MeshLambertMaterial({color:0x6e5a45});  // 어두운 트림 라인
+    var mMet   = new THREE.MeshPhongMaterial({                     // 크롬 (피프홀 림)
+      color:0xb8bcbe, specular:0x808080, shininess:130
+    });
+    var mLens  = new THREE.MeshPhongMaterial({                     // 피프홀 렌즈
+      color:0x202024, specular:0xa0a0a0, shininess:160
+    });
+    var mClose = new THREE.MeshLambertMaterial({color:0x2a2a2c});  // 도어 클로저 본체
+    var mLatch = new THREE.MeshPhongMaterial({                     // 데드볼트/실린더
+      color:0x9a9a9a, specular:0x707070, shininess:110
+    });
+
+    // 1) 패널 본체 (Box)
+    //    panel 로컬: (0, dH/2, -dW/2) — 힌지(z=0)에서 -z 방향으로 dW 확장
+    //    BoxGeometry로 두께 = x 방향 dT, 높이 = y 방향 dH, 폭 = z 방향 dW
+    var panel = new THREE.Mesh(
+      new THREE.BoxGeometry(dT, dH, dW),
+      mPanel
+    );
+    panel.position.set(0, dH/2, -dW/2);
+    panel.castShadow = true;
+    panel.receiveShadow = true;
+    pivot.add(panel);
+
+    // 2) 패널 양면 트림 — 외곽 + 가로 분할선 (방화문 전형 디테일)
+    //    side: +1 = +x 면 (복도 측), -1 = -x 면 (아파트 측)
+    function addFaceTrim(side){
+      var x0 = side * (dT/2 + 0.0015);
+      var tT = 0.003;                       // 트림 돌출 두께
+      var tW = 0.025;                       // 트림 폭 (가로/세로 단면)
+      // 외곽 트림: 상·하·좌·우 4변 (패널 가장자리 안쪽 4cm)
+      // 패널 로컬 z 범위 = -dW ~ 0 (힌지=0, 자유단=-dW), 중심 z = -dW/2
+      var inset = 0.05;
+      // 상단 가로
+      B(tT, tW, dW - inset*2, mTrim, x0, dH - 0.10, -dW/2);
+      // 하단 가로
+      B(tT, tW, dW - inset*2, mTrim, x0, 0.10,        -dW/2);
+      // 힌지측 세로 (z=-inset)
+      B(tT, dH - 0.20, tW, mTrim, x0, dH/2, -inset);
+      // 자유단 세로 (z=-(dW-inset))
+      B(tT, dH - 0.20, tW, mTrim, x0, dH/2, -(dW - inset));
+      // 가로 중앙 분할선
+      B(tT, 0.018, dW - inset*2, mTrim, x0, dH * 0.42, -dW/2);
+      // 추가 가로 (위쪽 1/3 지점)
+      B(tT, 0.014, dW - inset*2, mTrim, x0, dH * 0.72, -dW/2);
+    }
+    addFaceTrim(+1);   // 복도 측
+    addFaceTrim(-1);   // 아파트 측
+
+    // 3) 피프홀 (도어 관통 실린더, y ≈ 1.55m, z = 도어 중앙)
+    var phY = 1.55;
+    var phZ = -dW / 2;
+    // 외경 림
+    var phRim = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.014, 0.014, dT + 0.006, 16),
+      mMet
+    );
+    phRim.rotation.z = Math.PI/2;          // 축을 x 방향으로
+    phRim.position.set(0, phY, phZ);
+    pivot.add(phRim);
+    // 렌즈 (어두운 가운데)
+    var phLens = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.008, 0.008, dT + 0.008, 16),
+      mLens
+    );
+    phLens.rotation.z = Math.PI/2;
+    phLens.position.set(0, phY, phZ);
+    pivot.add(phLens);
+
+    // 4) 데드볼트 실린더 (자유단 위쪽, 양면)
+    var dbY = 1.30;
+    var dbZ = -(dW - 0.07);                 // 자유단 z=-dW 근처
+    function addDeadbolt(side){
+      var x0 = side * (dT/2 + 0.0025);
+      var c = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.018, 0.018, 0.025, 16),
+        mLatch
+      );
+      c.rotation.z = Math.PI/2;
+      c.position.set(x0 + side * 0.012, dbY, dbZ);
+      pivot.add(c);
+      // 키홀 (가운데 가로 슬릿)
+      B(0.001, 0.003, 0.012, mTrim, x0 + side * 0.026, dbY, dbZ);
+    }
+    addDeadbolt(+1);
+    addDeadbolt(-1);
+
+    // 5) 레버 손잡이 (자유단 z=-dW 근처, y=1.05) — 양면
+    //    레버 방향은 힌지(z=0) 쪽 = +z 방향
+    var hzL = -(dW - 0.07);
+    addLever(pivot, 0, 1.05, hzL,
+             new THREE.Vector3(-1, 0, 0),  // 손잡이 면 법선 = -x
+             new THREE.Vector3(0, 0, +1)); // 레버 방향 = +z (힌지 향함)
+    addLever(pivot, 0, 1.05, hzL,
+             new THREE.Vector3(+1, 0, 0),  // +x 면
+             new THREE.Vector3(0, 0, +1));
+
+    // 6) 도어 클로저 (-x 측 상단, 힌지 근방) — 단순 박스로 표현
+    //    힌지가 z=0(+z 방향이 힌지), 클로저는 힌지 근처에서 자유단 쪽으로 암 연장
+    B(0.05, 0.06, 0.16, mClose, -dT/2 - 0.025, dH - 0.08, -0.12);
+    B(0.04, 0.025, 0.22, mClose, -dT/2 - 0.025, dH - 0.13, -0.20);  // 암 (arm)
+
+    // 7) 방화문 라벨 스티커 (작은 흰 사각형, -x 측 상단)
+    var mLabel = new THREE.MeshLambertMaterial({color:0xf2eed8});
+    B(0.001, 0.05, 0.07, mLabel, -dT/2 - 0.0012, dH - 0.30, -(dW - 0.20));
+
+    _doors.push({pivot:pivot, doorMesh:panel, openRY:-Math.PI/2, isOpen:false});
+  })();
+
+})();
+
+/* =====================================================================
+   현관 신발장 양문형 인터랙티브 도어 (문 31, 문 32)
+   문 27/28(냉장고 양문형) 방식 참고 — 좌·우 각각 반대편 힌지, 가운데서 열림.
+   _doors[15] = 신발장 좌 (문 31), _doors[16] = 신발장 우 (문 32)
+===================================================================== */
+(function(){
+  var cBaseX = xBR + DW;            // 8.70
+  var cD     = 0.37;
+  var wallZ  = zM2 - WT/2;          // 4.14 (뒷벽 내면)
+  var frontZ = wallZ - cD;          // 3.77 (캐비닛 전면)
+  var cH     = CH;
+  var cW     = 1.18;                // 신발장 가로 (좌측 2칸 합계)
+
+  var panelW   = 0.54;              // 단일 패널 폭
+  var panelH   = cH - 0.06;        // 2.34
+  var panelCY  = cH / 2;            // 1.20 (패널 y 중심)
+  var DT       = 0.020;             // 패널 두께 2cm
+
+  var doorMat  = new THREE.MeshLambertMaterial({color:0xd4c8b0});
+  var handleMat= new THREE.MeshLambertMaterial({color:0x909090});
+
+  function makeShoeCabDoor(hingeX, hingeSide){
+    var pivot = new THREE.Object3D();
+    pivot.position.set(hingeX, 0, frontZ);
+    scene.add(pivot);
+    var dlx = (hingeSide === 'left') ? panelW/2 : -panelW/2;
+    // 패널: 두께가 -z 방향으로 (캐비닛 앞쪽으로) 돌출
+    var panel = new THREE.Mesh(
+      new THREE.BoxGeometry(panelW, panelH, DT),
+      doorMat
+    );
+    panel.position.set(dlx, panelCY, -DT/2);
+    panel.castShadow = true;
+    panel.receiveShadow = true;
+    pivot.add(panel);
+
+    // 손잡이 — 자유단(가운데) 쪽, 패널 앞면에 돌출
+    var hLocalX = (hingeSide === 'left') ? (panelW - 0.06) : -(panelW - 0.06);
+    var handle = new THREE.Mesh(
+      new THREE.BoxGeometry(0.03, 0.12, 0.03),
+      handleMat
+    );
+    handle.position.set(hLocalX, panelCY, -DT - 0.015);
+    handle.castShadow = true;
+    pivot.add(handle);
+
+    // openRY: 좌힌지 +π/2 / 우힌지 -π/2 → 패널이 -z 방향(현관 안쪽)으로 펼쳐짐
+    var openRY = (hingeSide === 'left') ? Math.PI/2 : -Math.PI/2;
+    _doors.push({pivot:pivot, doorMesh:panel, openRY:openRY, isOpen:false});
+  }
+
+  // 문 31 — 신발장 좌측 도어, 힌지 x=8.74 (좌측 가장자리)
+  makeShoeCabDoor(8.74, 'left');
+  // 문 32 — 신발장 우측 도어, 힌지 x=9.84 (우측 가장자리)
+  makeShoeCabDoor(9.84, 'right');
+})();
+
+/* =====================================================================
+   ELECTRICAL OUTLETS — 벽 콘센트 (데이터 중심 정의)
+   ----------------------------------------------------------------------
+   OUTLETS 배열에 위치/면방향/구수를 정의하면 buildOutlet() 가 일괄
+   생성. 추후 위치 조정·신규 추가·삭제는 OUTLETS 배열 한 곳만 수정.
+
+   각 항목 형식:
+     { x, y, z, face, gangs, kind?, label? }
+       x, y, z: 벽 *내면* (interior surface) 좌표 (m)
+                예: 남쪽 외벽 z=0 의 내면 z = WT/2 = 0.06
+                    북쪽 외벽 z=6.6 의 내면 z = 6.6 - WT/2 = 6.54
+                    동쪽 외벽 x=12 의 내면 x = 11.94
+                    서쪽 외벽 x=0  의 내면 x = 0.06
+       face: 'N' / 'S' / 'E' / 'W'  — 콘센트가 *향하는* 방향 (방 안쪽)
+                  N = +z 면 (남쪽 벽에 부착, 북쪽 향함)
+                  S = -z 면 (북쪽 벽에 부착, 남쪽 향함)
+                  E = +x 면 (서쪽 벽에 부착, 동쪽 향함)
+                  W = -x 면 (동쪽 벽에 부착, 서쪽 향함)
+       gangs: 1 / 2 / 3  — 구수 (각 gang 당 폭 72 mm)
+       kind:  'standard' (기본) / 'wet' (방수, 욕실용)
+       label: 자유 메모 (위치 식별용)
+
+   표준 마운트 높이 (한국 일반):
+     일반:        0.30 m  (바닥 위 30 cm)
+     주방 작업대: 1.10 m  (씽크 윗면 위 ~10 cm)
+     세탁기/가전: 1.20 m
+     세면대 위:   1.20 m  (방수)
+     비데용:      0.40 m  (방수)
+     에어컨용:    1.80~2.00 m (현재 미배치)
+
+   1구 플레이트: 72×120 mm, 2구: 144×120, 3구: 216×120, 두께 3 mm + 클리어런스 5 mm.
+===================================================================== */
+const OUTLETS = [
+  // ── 거실 (방 4) ─────────────────────────────────────────────────
+  { x: 1.985, y: 0.30, z: 0.06,            face: 'N', gangs: 2, label: '거실 소파 옆 (남쪽 벽)' },
+  { x: 4.50,  y: 0.30, z: 0.06,            face: 'N', gangs: 2, label: '거실 동측 (남쪽 벽)' },
+  { x: 3.60,  y: 0.30, z: zLR2 - WT/2,     face: 'S', gangs: 2, label: '거실 다이닝 옆 (북쪽 벽)' },
+  // ── 주방·식당 (방 5) ────────────────────────────────────────────
+  { x: 5.50,  y: 1.10, z: 0.06,            face: 'N', gangs: 3, label: '주방 작업대 좌 (인덕션 옆)' },
+  { x: 7.20,  y: 1.10, z: 0.06,            face: 'N', gangs: 2, label: '주방 작업대 우 (전자레인지)' },
+  { x: xBR - WT/2, y: 1.10, z: 1.50,       face: 'W', gangs: 2, label: '주방 우벽 작업대' },
+  { x: xBR - WT/2, y: 1.10, z: 2.30,       face: 'W', gangs: 2, label: '주방 우벽 (식기세척기)' },
+  // ── 침실 1 (방 7) ───────────────────────────────────────────────
+  { x: xHall - WT/2, y: 0.30, z: 0.50,     face: 'W', gangs: 2, label: '침실1 책상 좌' },
+  { x: xHall - WT/2, y: 0.30, z: 2.20,     face: 'W', gangs: 2, label: '침실1 남쪽' },
+  // ── 침실 2 (방 9) ───────────────────────────────────────────────
+  { x: 2.60,  y: 0.30, z: zB - WT/2,       face: 'S', gangs: 2, label: '침실2 침대맡 좌' },
+  { x: 4.00,  y: 0.30, z: zB - WT/2,       face: 'S', gangs: 2, label: '침실2 침대맡 우' },
+  // ── 욕실 (방 10) — 방수형 ──────────────────────────────────────
+  { x: 6.20,  y: 1.20, z: zB - WT/2,       face: 'S', gangs: 1, kind: 'wet', label: '욕실 세면대 위' },
+  { x: xKit + WT/2, y: 0.40, z: 5.70,      face: 'E', gangs: 1, kind: 'wet', label: '욕실 비데용' },
+  // ── 발코니 (방 3) ───────────────────────────────────────────────
+  { x: 0.50,  y: 1.20, z: zB - WT/2,       face: 'S', gangs: 2, label: '발코니 세탁기' },
+  // ── 연결통로 2 / 현관 (방 6) ────────────────────────────────────
+  { x: 9.30,  y: 0.30, z: zM1 + WT/2,      face: 'N', gangs: 1, label: '현관' },
+  // ── 복도 (방 8) ─────────────────────────────────────────────────
+  { x: 11.25, y: 0.30, z: zM2 - WT/2,      face: 'N', gangs: 1, label: '복도' },
+  // ── 창고 (방 11) ────────────────────────────────────────────────
+  { x: 8.50,  y: 0.30, z: zM2 + WT/2,      face: 'N', gangs: 2, label: '창고 (청소기/충전)' },
+];
+
+// SHIFT-aim 검출용 글로벌 레지스트리 — 각 항목 {plate, spec}.
+// minimap.js 의 _getAimInfo() 가 hit.object 의 부모 체인이 plate 와 일치하는지 검사.
+const _outlets = [];
+
+(function(){
+  var W_PER_GANG = 0.072;
+  var HEIGHT     = 0.120;
+  var PLATE_T    = 0.003;
+  var CLEARANCE  = 0.005;     // 벽지(WT/2 + E=0.003) 로부터 추가 클리어런스
+  var matStd  = makeLambert(0xfafafa);
+  var matWet  = makeLambert(0xe8e8d8);   // 방수형: 살짝 베이지
+  var matHole = makeLambert(0x2a2a2a);
+  var holeGeo = new THREE.BoxGeometry(0.014, 0.005, 0.0006);
+
+  function buildOutlet(o){
+    var W = W_PER_GANG * o.gangs;
+    var mat = (o.kind === 'wet') ? matWet : matStd;
+    var off = CLEARANCE + PLATE_T / 2;
+    var px = o.x, py = o.y, pz = o.z, roty = 0;
+    if      (o.face === 'N') { pz += off; roty = 0; }
+    else if (o.face === 'S') { pz -= off; roty = Math.PI; }
+    else if (o.face === 'E') { px += off; roty = -Math.PI / 2; }
+    else if (o.face === 'W') { px -= off; roty = Math.PI / 2; }
+    var plate = new THREE.Mesh(new THREE.BoxGeometry(W, HEIGHT, PLATE_T), mat);
+    plate.position.set(px, py, pz);
+    plate.rotation.y = roty;
+    plate.castShadow = false;
+    plate.receiveShadow = true;
+    scene.add(plate);
+    // gang 마다 위·아래 두 개의 작은 검은 사각형 (소켓 hole)
+    for (var g = 0; g < o.gangs; g++){
+      var gx = -W/2 + W_PER_GANG/2 + g * W_PER_GANG;
+      for (var h = 0; h < 2; h++){
+        var hy = -0.010 + h * 0.020;
+        var hole = new THREE.Mesh(holeGeo, matHole);
+        hole.position.set(gx, hy, PLATE_T / 2 + 0.0003);
+        plate.add(hole);
+      }
+    }
+    _outlets.push({ plate: plate, spec: o });    // SHIFT-aim 검출/하이라이트 용
+  }
+  OUTLETS.forEach(buildOutlet);
+})();
+
+/* =====================================================================
+   CAMERA  — 초기: 프리 카메라, 평면 전체 부감 (y=13, 정수직 하향)
+===================================================================== */
+camera.position.set(6, 9.4, 3.3);  // 아파트 중앙 상공 (초기 줌인 3단계)
+var yaw = 0, pitch = -Math.PI / 2; // 정수직 아래
+camera.rotation.y = yaw;
+camera.rotation.x = pitch;
+
+/* =====================================================================
+   CONTROLS
+===================================================================== */
+var freeMode = true;               // 초기 프리 카메라 모드
+var drag = false, dragX = 0, dragY = 0;
+var keys = {};
+var eyeHeight = 1.60;              // 1인칭 눈높이 (m, 기본 160cm), Q/E로 ±1cm 조정
+
+var badge = document.getElementById('badge');
+var ch    = document.getElementById('ch');
+var hint  = document.getElementById('hint');
+var eyeLabel = document.getElementById('eye-label');
+
+// 초기 UI 상태: 프리 카메라
+badge.textContent = '🎥 프리 카메라 모드';
+badge.style.background = 'rgba(130,30,190,.88)';
+ch.style.display = 'none';
+hint.style.opacity = '0';  // 1인칭 힌트 숨김
+
+document.addEventListener('keydown', function(e) {
+  keys[e.code] = true;
+  if (e.code === 'Space') {
+    e.preventDefault();
+    freeMode = !freeMode;
+    if (freeMode) {
+      badge.textContent = '🎥 프리 카메라 모드';
+      badge.style.background = 'rgba(130,30,190,.88)';
+      ch.style.display = 'none';
+      document.exitPointerLock();
+      // 1인칭 → 프리 전환 시 카메라 초기 상태로 리셋
+      camera.position.set(6, 9.4, 3.3);
+      yaw   = 0;
+      pitch = -Math.PI / 2;
+    } else {
+      badge.textContent = '👤 1인칭 모드';
+      badge.style.background = 'rgba(30,110,220,.88)';
+      ch.style.display = 'block';
+      camera.position.y = eyeHeight;
+      pitch = 0;   // 1인칭 전환 시 정면(수평) 바라보기
+      eyeLabel.style.display = 'block';
+      eyeLabel.textContent = Math.round(eyeHeight*100) + ' cm';
+    }
+    if (freeMode) eyeLabel.style.display = 'none';
+  }
+  // 프리 카메라 모드에서 R 키 → 카메라 초기 상태로 리셋
+  if (e.code === 'KeyR' && freeMode) {
+    e.preventDefault();
+    camera.position.set(6, 9.4, 3.3);
+    yaw   = 0;
+    pitch = -Math.PI / 2;
+  }
+  // 1인칭 모드에서 Q/E 키 → 눈높이 ±1cm
+  if (!freeMode) {
+    if (e.code === 'KeyE') {
+      e.preventDefault();
+      eyeHeight = Math.min(2.30, eyeHeight + 0.01);
+      eyeLabel.textContent = Math.round(eyeHeight*100) + ' cm';
+    }
+    if (e.code === 'KeyQ') {
+      e.preventDefault();
+      eyeHeight = Math.max(0.30, eyeHeight - 0.01);
+      eyeLabel.textContent = Math.round(eyeHeight*100) + ' cm';
+    }
+  }
+});
+document.addEventListener('keyup', function(e) { keys[e.code] = false; });
+
+// 문 토글 공통 함수 (NDC 좌표 기준 레이캐스트)
+function _toggleDoorAtNDC(ndcX, ndcY){
+  var ray = new THREE.Raycaster();
+  ray.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
+  var doorMeshes = [];
+  for (var _di = 0; _di < _doors.length; _di++) doorMeshes.push(_doors[_di].doorMesh);
+  var hits = ray.intersectObjects(doorMeshes);
+  if (hits.length > 0) {
+    var hitMesh = hits[0].object;
+    for (var _dj = 0; _dj < _doors.length; _dj++) {
+      if (_doors[_dj].doorMesh === hitMesh) {
+        _doors[_dj].isOpen = !_doors[_dj].isOpen;
+        break;
+      }
+    }
+  }
+}
+
+// 클릭 핸들러 — 1인칭 전용 (프리 모드는 mouseup에서 처리)
+renderer.domElement.addEventListener('click', function(e) {
+  if (freeMode) return;
+  if (document.pointerLockElement !== renderer.domElement) {
+    renderer.domElement.requestPointerLock();
+    return;
+  }
+  _toggleDoorAtNDC(0, 0);
+});
+
+/* ─────────────────────────────────────────────────────────────────
+   프리 카메라 드래그 ARM 시스템
+   - 마우스 좌버튼 누른 후 1초 경과 전: 카메라 안 움직임 (짧은 클릭 허용)
+   - 1초 경과 후: 카메라 회전 활성화
+   - 1초 전에 떼면: 문 토글 클릭으로 처리
+   - 진행 상태는 커서 아래 작은 프로그래스 바로 표시
+   ─────────────────────────────────────────────────────────────── */
+var _dragArmed = false;
+var _armTimer = null;
+var ARM_DURATION = 1000;             // 1초
+var armBar  = document.getElementById('drag-arm-bar');
+var armFill = document.getElementById('drag-arm-fill');
+function _positionArmBar(x, y){
+  armBar.style.left = x + 'px';
+  armBar.style.top  = (y + 18) + 'px';
+}
+function _hideArmBar(){
+  armBar.style.display = 'none';
+  armBar.classList.remove('armed');
+  armFill.style.width = '0%';
+}
+function _clearArmTimer(){
+  if (_armTimer){ clearInterval(_armTimer); _armTimer = null; }
+}
+document.addEventListener('pointerlockchange', function() {
+  if (document.pointerLockElement === renderer.domElement) {
+    hint.style.opacity = '0';
+  }
+});
+
+// Mouse for free-camera drag & first-person pointer-lock look
+renderer.domElement.addEventListener('mousedown', function(e) {
+  if (e.button === 0 && freeMode) {
+    drag = true; dragX = e.clientX; dragY = e.clientY;
+    _dragArmed = false;
+    _positionArmBar(e.clientX, e.clientY);
+    armBar.style.display = 'block';
+    armBar.classList.remove('armed');
+    armFill.style.width = '0%';
+    var t0 = performance.now();
+    _clearArmTimer();
+    _armTimer = setInterval(function(){
+      var elapsed = performance.now() - t0;
+      var pct = Math.min(100, (elapsed / ARM_DURATION) * 100);
+      armFill.style.width = pct + '%';
+      if (elapsed >= ARM_DURATION){
+        _dragArmed = true;
+        armBar.classList.add('armed');     // 색상 변경 (yellow → green) — 카메라 회전 가능
+        _clearArmTimer();
+      }
+    }, 20);
+  }
+});
+document.addEventListener('mouseup', function(e) {
+  if (drag && freeMode) {
+    if (!_dragArmed) {
+      // 1초 경과 전 마우스를 떼면 → 짧은 클릭 → 문 토글 시도
+      var rect = renderer.domElement.getBoundingClientRect();
+      var ndcX =  ((e.clientX - rect.left) / rect.width)  * 2 - 1;
+      var ndcY = -((e.clientY - rect.top)  / rect.height) * 2 + 1;
+      _toggleDoorAtNDC(ndcX, ndcY);
+    }
+    _clearArmTimer();
+    _hideArmBar();
+    _dragArmed = false;
+  }
+  drag = false;
+});
+
+// 프리 카메라 — 휠 줌 (카메라 시선 방향으로 전진/후진)
+renderer.domElement.addEventListener('wheel', function(e) {
+  if (!freeMode) return;
+  e.preventDefault();
+  var speed = 0.012;                          // 줌 민감도 (필요시 조절)
+  var delta = e.deltaY * speed;               // +: 줌아웃, -: 줌인
+  // 현재 시선 방향(yaw·pitch 적용된 단위 벡터)으로 이동
+  var cosP = Math.cos(pitch);
+  var fwdX = -Math.sin(yaw) * cosP;
+  var fwdY =  Math.sin(pitch);
+  var fwdZ = -Math.cos(yaw) * cosP;
+  camera.position.x += fwdX * (-delta);
+  camera.position.y += fwdY * (-delta);
+  camera.position.z += fwdZ * (-delta);
+}, { passive: false });
+
+document.addEventListener('mousemove', function(e) {
+  // 프리 모드 드래그 중이면 ARM 바를 커서 따라 이동
+  if (drag && freeMode) _positionArmBar(e.clientX, e.clientY);
+
+  var dx = 0, dy = 0;
+  if (freeMode) {
+    if (!drag) return;
+    if (!_dragArmed) {
+      // 1초 경과 전 — 카메라 회전 안 함, 다만 dragX/Y 갱신해 ARM 후 점프 방지
+      dragX = e.clientX; dragY = e.clientY;
+      return;
+    }
+    dx = e.clientX - dragX; dy = e.clientY - dragY;
+    dragX = e.clientX; dragY = e.clientY;
+  } else {
+    if (document.pointerLockElement !== renderer.domElement) return;
+    dx = e.movementX || 0; dy = e.movementY || 0;
+  }
+  yaw   -= dx * 0.0030;
+  pitch -= dy * 0.0028;
+  if (pitch >  1.38) pitch =  1.38;
+  if (pitch < -1.38) pitch = -1.38;
+});
+
+</script>
+<script src="minimap.js"></script>
+<script>
+"use strict";
+
+/* =====================================================================
+   디버그 모드 (항목 S) — URL 에 ?debug 가 있을 때만 활성
+   - 50cm 그리드 라인 (옅은 회색) + 1m 그리드 (조금 진하게)
+   - X(빨강) / Z(파랑) 축 (원점 0,0 에서 시작)
+   - 가구 BBox 외곽선 (녹색, y=FT+0.001)
+   - 미니맵·SHIFT 라벨에 영향 없음 — 추가 메시만 scene 에 부착.
+   기본(비활성) 시 어떤 메시도 생성되지 않아 동작/성능 변경 0.
+===================================================================== */
+const DEBUG = location.search.indexOf('debug') !== -1;
+if (DEBUG) {
+  var dbg = new THREE.Group();
+  dbg.name = '_debugOverlay';
+  scene.add(dbg);
+
+  function dbgLine(x1,z1, x2,z2, color, y){
+    y = (y === undefined) ? FT + 0.002 : y;
+    var g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(
+      [x1, y, z1,  x2, y, z2], 3));
+    var m = new THREE.LineBasicMaterial({color:color});
+    dbg.add(new THREE.Line(g, m));
+  }
+
+  // 50 cm / 1 m 그리드 (xL~xR, zT~zB)
+  for (var gx = 0; gx <= 12; gx += 0.5) {
+    dbgLine(gx, zT, gx, zB, (gx % 1 === 0) ? 0x666666 : 0x303030);
+  }
+  for (var gz = 0; gz <= 6.6; gz += 0.5) {
+    dbgLine(xL, gz, xR, gz, (Math.abs(gz - Math.round(gz)) < 0.01) ? 0x666666 : 0x303030);
+  }
+
+  // X / Z 축 (강조 색)
+  dbgLine(xL, zT, xR, zT, 0xff4040, FT + 0.005);  // X 축 (빨강)
+  dbgLine(xL, zT, xL, zB, 0x4080ff, FT + 0.005);  // Z 축 (파랑)
+
+  // 가구 BBox 외곽선 (녹색)
+  if (typeof window._mmData !== 'undefined') {
+    window._mmData.FURNITURE_BBOX.forEach(function(b){
+      dbgLine(b[0], b[1], b[2], b[1], 0x40c060);
+      dbgLine(b[2], b[1], b[2], b[3], 0x40c060);
+      dbgLine(b[2], b[3], b[0], b[3], 0x40c060);
+      dbgLine(b[0], b[3], b[0], b[1], 0x40c060);
+    });
+  }
+
+  console.log('[S] 디버그 모드 활성 — 그리드/축/BBox 오버레이 표시. window._mmData 로 미니맵 데이터 접근 가능.');
+}
+
+/* =====================================================================
+   ANIMATION LOOP
+===================================================================== */
+var clock = new THREE.Clock();
+var WALK  = 3.5;
+var FLY   = 6.0;
+
+// animate() 매 프레임 호출되는 임시 벡터들 — 모듈 스코프에 한 번만 생성하고
+// .set() 으로 재사용해 GC 압박을 제거 (60fps × 4 alloc = 240/s 신규 → 0).
+var _fwd   = new THREE.Vector3();
+var _right = new THREE.Vector3();
+var _up3   = new THREE.Vector3(0, 1, 0);
+var _move  = new THREE.Vector3();
+
+function animate() {
+  requestAnimationFrame(animate);
+  var dt = Math.min(clock.getDelta(), 0.05);
+
+  camera.rotation.y = yaw;
+  camera.rotation.x = pitch;
+
+  _fwd  .set(-Math.sin(yaw), 0, -Math.cos(yaw));
+  _right.set( Math.cos(yaw), 0, -Math.sin(yaw));
+  // _up3 는 (0,1,0) 고정 — 갱신 불필요
+  _move .set(0, 0, 0);
+
+  if (keys['KeyW']) _move.addScaledVector(_fwd,    1);
+  if (keys['KeyS']) _move.addScaledVector(_fwd,   -1);
+  if (keys['KeyA']) _move.addScaledVector(_right, -1);
+  if (keys['KeyD']) _move.addScaledVector(_right,  1);
+
+  if (freeMode) {
+    if (keys['KeyE']) _move.addScaledVector(_up3,  1);
+    if (keys['KeyQ']) _move.addScaledVector(_up3, -1);
+    if (_move.lengthSq() > 0) _move.normalize();
+    camera.position.addScaledVector(_move, FLY * dt);
+  } else {
+    _move.y = 0;
+    if (_move.lengthSq() > 0) _move.normalize();
+    camera.position.addScaledVector(_move, WALK * dt);
+    camera.position.y = eyeHeight;
+  }
+
+  // 문 열림/닫힘 부드러운 회전 보간
+  // axis 미지정 = 'y' (스윙 도어: openRY 사용). axis='x'/'z' = 플랩 도어 (openR 사용).
+  for (var _da = 0; _da < _doors.length; _da++) {
+    var _d = _doors[_da];
+    var _ax = _d.axis || 'y';
+    var _opR = (_ax === 'y') ? _d.openRY : _d.openR;
+    var _target = _d.isOpen ? _opR : 0;
+    _d.pivot.rotation[_ax] += (_target - _d.pivot.rotation[_ax]) * Math.min(1, dt * 7);
+  }
+
+  // 1인칭 모드: 아파트 외부에서는 벽 안 보이게 (X-ray 효과)
+  if (!freeMode) {
+    var _inApt = camera.position.x > xL && camera.position.x < xR
+              && camera.position.z > zT && camera.position.z < zB;
+    mExt.visible  = _inApt;
+    mWall.visible = _inApt;
+  } else {
+    mExt.visible  = true;
+    mWall.visible = true;
+  }
+  // 천장: 1인칭 모드에서만 표시, 프리 카메라에서는 숨김
+  mCeil.visible = !freeMode;
+
+  renderer.render(scene, camera);
+  _drawMinimap();
+}
+animate();
+</script>
+</body>
+</html>
