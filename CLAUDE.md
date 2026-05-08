@@ -13,10 +13,10 @@
 | 파일 | 역할 |
 |---|---|
 | `index.html` (~2.5 K 줄) | HTML 셸 + UI/CSS + 인라인 JS (씬·`LIGHTING`·`PAL`·레이아웃·헬퍼·텍스처(`TILE_CONFIG`/`WALLPAPER_CONFIG`)·`WALLPAPER_OVERRIDES`·바닥·천장·외벽·내벽·걸레받이(`mSkirting` 전역)·문(swing/flap/slide)·라벨·조명·벽지·키친핏·외부문·신발장·**영림 3연동 중문**·어셔션 시각 띠 + monkey-patch·카메라·컨트롤·1 키/M 키 안내·디버그·애니메이션) |
-| `outlets.js` (~165 줄) | `OUTLETS` 배열 (27 항목, 위치/면방향/구수/방수/라벨) + `_outlets[]` 레지스트리 + `buildOutlet` IIFE (한국 220V Type-F: 원형 리세스 컵 ⌀46mm + 둥근 핀 홀 2개 ⌀4.4mm 19mm 가로 간격, 2구만 세로 배치). |
+| `outlets.js` (~165 줄) | `OUTLETS` 배열 (26 항목, 위치/면방향/구수/방수/라벨) + `_outlets[]` 레지스트리 + `buildOutlet` IIFE (한국 220V Type-F: 원형 리세스 컵 ⌀46mm + 둥근 핀 홀 2개 ⌀4.4mm 19mm 가로 간격, 2구만 세로 배치). |
 | `furniture.js` (~2.1 K 줄) | `FURN_REGISTRY` + `FURN_META` (27 개 메타) + `FURN_CATALOG` (13 종 템플릿) + 가구 IIFE 27 개 |
 | `minimap.js` (~1.4 K 줄) | 미니맵 IIFE — `ROOMS`/`WALLS`/`DOORS`/`FURNITURE`/`WINDOWS` 데이터 + `WINDOWS_BBOX`/`FURNITURE_BBOX`/`WINDOWS_H`/`WINDOWS_Y0` + 정적 캔버스 캐시 (타이틀만) + 동적 배지 layer (hover-spread 콜아웃 + cat 필드 — PP 모드 시 wall 만 표시) + SHIFT-aim 식별/치수 라벨 (PP 모드: 콘센트 + 벽 한정) + init-time 어셔션 (§M/§P/§U/§CC) + 콘솔 헬퍼 (`_inspect`/`_gap`/`_listRoom`) |
-| `outlets.js` (~210 줄) | `OUTLETS` 27 항목 + `gangLayout()` + `FACE` lookup + `buildOutlet` IIFE (한국 220V Type-F, 2구 세로) + `[O]` 데이터 init-time 검증 + `_outletStats()` 콘솔 헬퍼 |
+| `outlets.js` (~210 줄) | `OUTLETS` 26 항목 + `gangLayout()` + `FACE` lookup + `buildOutlet` IIFE (한국 220V Type-F, 2구 세로) + `[O]` 데이터 init-time 검증 + `_outletStats()` 콘솔 헬퍼 |
 | `powerplan.js` (~190 줄) | 전원 계획 모드 (1 키 토글) — `setPowerPlanMode` / `_initPowerPlanCache` (isPreserved 헬퍼 + 도어 분류 + 휴리스틱 상수 hoist) / `_initOutletOutlines` / `_buildPpVisIdxs` / `[PP]` 어셔션 |
 | `vendor/three.min.js` | Three.js 0.150.1 UMD (벤더링됨) |
 | `DESIGN.md` | 권위 기술 문서 — 항목 A~T + U/CC/W/Z/Y/AA/V/X/DD/BB + §3.6.8 (PP/outlets/Type-F 리팩토링) 적용 이력 |

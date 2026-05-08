@@ -14,7 +14,7 @@
 | 파일 | 역할 |
 |---|---|
 | `index.html` (~2.5 K 줄) | HTML 셸 + UI/CSS + 인라인 JS (씬·`LIGHTING`·`PAL`·레이아웃·헬퍼·텍스처(`TILE_CONFIG`/`WALLPAPER_CONFIG`)·`WALLPAPER_OVERRIDES`·바닥·천장·외벽·내벽·걸레받이(`mSkirting` 전역)·문(swing/flap/slide)·라벨·조명·벽지·키친핏·외부문·신발장·**영림 3연동 중문**·어셔션 시각 띠·카메라·컨트롤·디버그·애니메이션) |
-| `outlets.js` (~200 줄) | `OUTLETS` 27 항목 + `_outlets[]` 레지스트리 + `buildOutlet` IIFE (한국 220V Type-F, 2구 세로) + `_outletStats()` 콘솔 헬퍼 |
+| `outlets.js` (~200 줄) | `OUTLETS` 26 항목 + `_outlets[]` 레지스트리 + `buildOutlet` IIFE (한국 220V Type-F, 2구 세로) + `_outletStats()` 콘솔 헬퍼 |
 | `powerplan.js` (~190 줄) | 전원 계획 모드 (`1` 키 토글): `setPowerPlanMode` / `_initPowerPlanCache` / `_initOutletOutlines` / `_buildPpVisIdxs` |
 | `furniture.js` (~2.1 K 줄) | `FURN_REGISTRY` + `FURN_META` (27 개 메타) + `FURN_CATALOG` (13 종 템플릿) + 가구 IIFE 27 개 |
 | `minimap.js` (~1.4 K 줄) | 미니맵 IIFE — `ROOMS`/`WALLS`/`DOORS`/`FURNITURE`/`WINDOWS` 데이터 + 정적 캔버스 캐시 + 동적 배지 (cat 필드, PP 모드 시 wall 만 + hover-spread 콜아웃) + SHIFT-aim 식별/치수 라벨 (PP 모드: 콘센트+벽 한정) + init-time 어셔션 (§M/§P/§U/§CC) + 콘솔 헬퍼 (`_inspect`/`_gap`/`_listRoom`) |

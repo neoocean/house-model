@@ -7,7 +7,7 @@
 >
 > **빌드 구성** (총 ~920 KB):
 > - `index.html` — ~2 600 줄 / 132 KB. 메인 HTML + UI/CSS + 인라인 JS (씬·라이팅(`LIGHTING`)·재료(`PAL`/`mSkirting` 전역)·레이아웃·헬퍼·텍스처(`TILE_CONFIG`/`WALLPAPER_CONFIG`)·`WALLPAPER_OVERRIDES`·바닥·천장·외벽·내벽·걸레받이·문·라벨·조명·벽지·키친핏·외부문·신발장·영림 3연동 중문·**어셔션 시각 띠 + console.assert/warn monkey-patch**·카메라·컨트롤·M 키 미니맵 토글·디버그·애니메이션 루프). `_doors[]` 애니메이션 루프는 `axis` 필드(기본 `'y'` 스윙, `'x'`/`'z'` 플랩, `kind:'slide'` 미닫이) 분기 보간. **PP 모드 (1 키 토글) 는 powerplan.js 로 분리됨.**
-> - `outlets.js` — ~210 줄 / 9 KB. `OUTLETS` 배열 (27 항목) + `_outlets[]` 레지스트리 + `gangLayout()` + `buildOutlet` IIFE. **한국 220V Type-F 형태**: 원형 리세스 컵 ⌀46mm + 둥근 핀 홀 2개 ⌀4.4mm 19mm 가로 간격. **2구만 세로 배치** (1/3/4구는 가로). 벽으로부터 돌출 ~37mm (CLEARANCE 35mm + plate 두께 1.5mm). 사용자 요청 (CL 50383) 으로 index.html 인라인 2 에서 분리, inline 1 직후 furniture.js 직전 로드. `_outletStats()` 콘솔 헬퍼 노출.
+> - `outlets.js` — ~210 줄 / 9 KB. `OUTLETS` 배열 (26 항목) + `_outlets[]` 레지스트리 + `gangLayout()` + `buildOutlet` IIFE. **한국 220V Type-F 형태**: 원형 리세스 컵 ⌀46mm + 둥근 핀 홀 2개 ⌀4.4mm 19mm 가로 간격. **2구만 세로 배치** (1/3/4구는 가로). 벽으로부터 돌출 ~37mm (CLEARANCE 35mm + plate 두께 1.5mm). 사용자 요청 (CL 50383) 으로 index.html 인라인 2 에서 분리, inline 1 직후 furniture.js 직전 로드. `_outletStats()` 콘솔 헬퍼 노출.
 > - `powerplan.js` — ~190 줄 / 9 KB. 전원 계획 모드 (1 키 토글). `setPowerPlanMode` / `_initPowerPlanCache` (분류 휴리스틱 + isPreserved 헬퍼 + doorSet 분류) / `_initOutletOutlines` / `_buildPpVisIdxs` / Digit1 keydown 리스너. inline 2 직후 (모든 _doors push 완료 후) minimap.js 직전 로드 — CL 50409 분리.
 > - `furniture.js` — 2 127 줄 / 105 KB. `FURN_REGISTRY` + `FURN_META` (27 개) + `FURN_CATALOG` (13 종 템플릿) + 가구 IIFE 27 개 (드럼세탁기·소파·다이닝·자전거·침대·책상·책꽂이 3종·벽걸이 자전거·신발장·붙박이장·주방 4종(하부 앞/우, 상부 앞, **축소판 반투명 플랩 상부 우**)·욕실 위생기구·벽등).
 > - `minimap.js` — ~1 400 줄 / 65 KB. 미니맵 IIFE (`ROOMS`/`WALLS`/`DOORS`/`FURNITURE`/`WINDOWS` 데이터 + `WINDOWS_BBOX`/`FURNITURE_BBOX`/`WINDOWS_H`/`WINDOWS_Y0` + 정적 레이어 캐시 + 번호 배지 (cat 필드, **PP 모드 시 wall 만 표시**) + SHIFT 치수 표시·콘센트 하이라이트·**PP 모드 SHIFT 시 콘센트+벽 한정 라벨** + 어셔션 §M/§P/§U/§CC + 콘솔 헬퍼 `_inspect`/`_gap`/`_listRoom`).
@@ -358,7 +358,7 @@
 - **벽으로부터 돌출**: `CLEARANCE = 0.035m` + `PLATE_T/2 = 0.0015m` ≈ 37mm (CL 50398: 사용자 요청 +2cm 추가 돌출).
 - **face / roty**: spec.face = 'N'/'S'/'E'/'W' → plate 의 roty (Y 회전) 와 z/x 오프셋. 벽 내면 좌표 (spec.x/z) + face 방향 off 만큼 plate 가 실내로 돌출.
 
-#### D. 콘센트 배치 현황 (27 항목)
+#### D. 콘센트 배치 현황 (26 항목)
 
 각 콘센트의 위치·구수·종류는 [`POWERPLAN.md`](./POWERPLAN.md) 의 방별 표 참조. 주요 패턴:
 
