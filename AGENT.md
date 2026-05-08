@@ -13,21 +13,29 @@
 ## 파일 구성
 | 파일 | 역할 |
 |---|---|
-| `index.html` (~2.3 K 줄) | HTML 셸 + UI/CSS + 인라인 JS (씬·`LIGHTING`·`PAL`·`ROOM_PROFILE`·`VARIANT`·레이아웃·헬퍼·텍스처(`TILE_CONFIG`/`WALLPAPER_CONFIG`)·`WALLPAPER_OVERRIDES`·바닥·천장·외벽·내벽·걸레받이·문(swing/flap/slide)·라벨·조명·벽지·키친핏·외부문·신발장·**영림 3연동 중문**·`OUTLETS`·카메라·컨트롤·1 키 가구 토글·디버그·애니메이션) |
+| `index.html` (~2.5 K 줄) | HTML 셸 + UI/CSS + 인라인 JS (씬·`LIGHTING`·`PAL`·레이아웃·헬퍼·텍스처(`TILE_CONFIG`/`WALLPAPER_CONFIG`)·`WALLPAPER_OVERRIDES`·바닥·천장·외벽·내벽·걸레받이(`mSkirting` 전역)·문(swing/flap/slide)·라벨·조명·벽지·키친핏·외부문·신발장·**영림 3연동 중문**·어셔션 시각 띠·카메라·컨트롤·디버그·애니메이션) |
+| `outlets.js` (~200 줄) | `OUTLETS` 27 항목 + `_outlets[]` 레지스트리 + `buildOutlet` IIFE (한국 220V Type-F, 2구 세로) + `_outletStats()` 콘솔 헬퍼 |
+| `powerplan.js` (~190 줄) | 전원 계획 모드 (`1` 키 토글): `setPowerPlanMode` / `_initPowerPlanCache` / `_initOutletOutlines` / `_buildPpVisIdxs` |
 | `furniture.js` (~2.1 K 줄) | `FURN_REGISTRY` + `FURN_META` (27 개 메타) + `FURN_CATALOG` (13 종 템플릿) + 가구 IIFE 27 개 |
-| `minimap.js` (~1.35 K 줄) | 미니맵 IIFE — `ROOMS`/`WALLS`/`DOORS`/`FURNITURE`/`WINDOWS` 데이터 + 정적 캔버스 캐시 + 동적 배지 (hover-spread 콜아웃) + SHIFT-aim 식별/치수 라벨 + init-time 어셔션 (§M/§P/§U/§CC) + 콘솔 헬퍼 (`_inspect`/`_gap`/`_listRoom`) |
+| `minimap.js` (~1.4 K 줄) | 미니맵 IIFE — `ROOMS`/`WALLS`/`DOORS`/`FURNITURE`/`WINDOWS` 데이터 + 정적 캔버스 캐시 + 동적 배지 (cat 필드, PP 모드 시 wall 만 + hover-spread 콜아웃) + SHIFT-aim 식별/치수 라벨 (PP 모드: 콘센트+벽 한정) + init-time 어셔션 (§M/§P/§U/§CC) + 콘솔 헬퍼 (`_inspect`/`_gap`/`_listRoom`) |
 | `vendor/three.min.js` | Three.js 0.150.1 UMD (벤더링됨) |
+| `POWERPLAN.md` | 전원 콘센트 배치 인덱스 (방별 표 + 표준 마운트 높이 + PP 모드 동작) |
 
 ## 실행 / 검증
 - 실행: 브라우저로 `model/index.html` 열기. 빌드 단계 없음.
-- 단축키: `Space` (모드 토글), `WASD` (이동), `Q`/`E` (위/아래 또는 눈높이), `R` (카메라 리셋), `SHIFT` (조준 라벨+치수), **`1` (가구 일괄 표시/숨김)**.
+- 단축키: `Space` (모드 토글), `WASD` (이동), `Q`/`E` (위/아래 또는 눈높이), `R` (카메라 리셋), `SHIFT` (조준 라벨+치수), **`1` (전원 계획 모드 토글)**, **`M` (미니맵 표시/숨김)**.
 - 디버그 모드: `index.html?debug` — 50 cm 그리드 + X/Z 축 + 가구 BBox 외곽선 + `window._mmData` 노출.
 - 레이아웃 변형: `?variant=<name>` (인프라만 — 호출 사이트 분기 추가 시 유효).
 - 콘솔 헬퍼:
   - `_inspect(48)` 또는 `_inspect('FURN#48')` — 가구 메타 조회
   - `_gap(48, 49)` — 두 가구 BBox 간 xz 클리어런스 (cm)
   - `_listRoom('욕실')` — 한 방의 가구 목록
-- init-time 어셔션 (실패 시 콘솔 경고): `[M]`/`[P]`/`[U]` 인덱스 일관성, `[CC]` 가구-가구·가구-벽 충돌.
+  - `_outletStats()` — OUTLETS 통계 (total / totalGangs / byRoom / byKind)
+- init-time 어셔션 (실패 시 콘솔 경고 + 화면 상단 빨간 띠 `#assert-banner`):
+  - `[M]`/`[P]`/`[U]`/`[CC]` (minimap.js) — 인덱스 일관성·spec↔배열·충돌
+  - `[O]` (outlets.js) — OUTLETS face/gangs/좌표/kind 범위 검사
+  - `[PP]` (powerplan.js, 1 키 토글 시) — _ppFurnsToHide 범위 / outlines = outlets
+  - 모두 `console.assert` / `console.warn` monkey-patch 로 자동 띠 표시.
 
 ## 안정 식별자 시스템
 모든 객체는 글로벌 `@TYPE#NN` 번호로 참조한다 (배지 = ROOMS+DOORS+FURN+i 누적합):
@@ -58,13 +66,11 @@
 | 바닥 타일 톤 | `TILE_CONFIG.baseColors` |
 | 벽지 톤 (전체) | `WALLPAPER_CONFIG.baseColor` |
 | 벽지 (방별) | `WALLPAPER_OVERRIDES['방이름']` + 빌더 측 적용 |
-| 방 자재 프로필 | `ROOM_PROFILE['방이름']` |
 | 우드톤 가구 일괄 변경 | `PAL.wood.*` (마이그레이션된 가구만) |
 | 신규 가구 추가 | `defineFurniture` 권장 + `FURN_META[id]` + `FURNITURE[]` + `FURNITURE_BBOX[]` + (인터랙티브 도어) `_doors.push` + `DOORS[]` |
 | 신규 미닫이 도어 추가 | `_doors.push({kind:'slide', linkGroup:'<id>', pivot, doorMesh, slideAxis, slideOrigin, slideOpen, isOpen})` + `DOORS[]` 동기 (assertion §M 준수). doorMesh 는 패널 Group — `_toggleDoorAtNDC` 가 recursive intersect + 부모 체인으로 매칭. linkGroup 일치하는 모든 패널이 동기 토글. |
 | 미니맵 배지 충돌 식별 | 마우스를 미니맵 위에 호버 — 주변 36 px 안 배지가 64+ px 원에 펼쳐짐 (hover-spread 콜아웃, CL 50276). |
 | 가구 후보 카탈로그 | `FURN_CATALOG` (CSV 후보 + 표준 13 종) |
-| 레이아웃 A/B | `?variant=<name>` + `if (notVariant('...')) ...` 분기 |
 | 벽 위치 이동 | `DESIGN.md §3.7.1` 체크리스트 9 단계 |
 | 측정값 반영 | 해당 위치 + `@MEASURED YYYY-MM-DD` 마커 |
 

@@ -12,11 +12,15 @@
 ## 파일 구성
 | 파일 | 역할 |
 |---|---|
-| `index.html` (~2.3 K 줄) | HTML 셸 + UI/CSS + 인라인 JS (씬·`LIGHTING`·`PAL`·`ROOM_PROFILE`·`VARIANT`·레이아웃·헬퍼·텍스처(`TILE_CONFIG`/`WALLPAPER_CONFIG`)·`WALLPAPER_OVERRIDES`·바닥·천장·외벽·내벽·걸레받이·문(swing/flap/slide)·라벨·조명·벽지·키친핏·외부문·신발장·**영림 3연동 중문**·`OUTLETS`·카메라·컨트롤·1 키 가구 토글·디버그·애니메이션) |
+| `index.html` (~2.5 K 줄) | HTML 셸 + UI/CSS + 인라인 JS (씬·`LIGHTING`·`PAL`·레이아웃·헬퍼·텍스처(`TILE_CONFIG`/`WALLPAPER_CONFIG`)·`WALLPAPER_OVERRIDES`·바닥·천장·외벽·내벽·걸레받이(`mSkirting` 전역)·문(swing/flap/slide)·라벨·조명·벽지·키친핏·외부문·신발장·**영림 3연동 중문**·어셔션 시각 띠 + monkey-patch·카메라·컨트롤·1 키/M 키 안내·디버그·애니메이션) |
+| `outlets.js` (~165 줄) | `OUTLETS` 배열 (27 항목, 위치/면방향/구수/방수/라벨) + `_outlets[]` 레지스트리 + `buildOutlet` IIFE (한국 220V Type-F: 원형 리세스 컵 ⌀46mm + 둥근 핀 홀 2개 ⌀4.4mm 19mm 가로 간격, 2구만 세로 배치). |
 | `furniture.js` (~2.1 K 줄) | `FURN_REGISTRY` + `FURN_META` (27 개 메타) + `FURN_CATALOG` (13 종 템플릿) + 가구 IIFE 27 개 |
-| `minimap.js` (~1.35 K 줄) | 미니맵 IIFE — `ROOMS`/`WALLS`/`DOORS`/`FURNITURE`/`WINDOWS` 데이터 + `WINDOWS_BBOX`/`FURNITURE_BBOX`/`WINDOWS_H`/`WINDOWS_Y0` + 정적 캔버스 캐시 (타이틀만) + 동적 배지 layer (hover-spread 콜아웃) + SHIFT-aim 식별/치수 라벨 + init-time 어셔션 (§M/§P/§U/§CC) + 콘솔 헬퍼 (`_inspect`/`_gap`/`_listRoom`) |
+| `minimap.js` (~1.4 K 줄) | 미니맵 IIFE — `ROOMS`/`WALLS`/`DOORS`/`FURNITURE`/`WINDOWS` 데이터 + `WINDOWS_BBOX`/`FURNITURE_BBOX`/`WINDOWS_H`/`WINDOWS_Y0` + 정적 캔버스 캐시 (타이틀만) + 동적 배지 layer (hover-spread 콜아웃 + cat 필드 — PP 모드 시 wall 만 표시) + SHIFT-aim 식별/치수 라벨 (PP 모드: 콘센트 + 벽 한정) + init-time 어셔션 (§M/§P/§U/§CC) + 콘솔 헬퍼 (`_inspect`/`_gap`/`_listRoom`) |
+| `outlets.js` (~210 줄) | `OUTLETS` 27 항목 + `gangLayout()` + `FACE` lookup + `buildOutlet` IIFE (한국 220V Type-F, 2구 세로) + `[O]` 데이터 init-time 검증 + `_outletStats()` 콘솔 헬퍼 |
+| `powerplan.js` (~190 줄) | 전원 계획 모드 (1 키 토글) — `setPowerPlanMode` / `_initPowerPlanCache` (isPreserved 헬퍼 + 도어 분류 + 휴리스틱 상수 hoist) / `_initOutletOutlines` / `_buildPpVisIdxs` / `[PP]` 어셔션 |
 | `vendor/three.min.js` | Three.js 0.150.1 UMD (벤더링됨) |
-| `DESIGN.md` | 권위 기술 문서 — 항목 A~T + U/CC/W/Z/Y/AA/V/X/DD/BB 적용 이력, 시행착오, 변경 시 주의점 |
+| `DESIGN.md` | 권위 기술 문서 — 항목 A~T + U/CC/W/Z/Y/AA/V/X/DD/BB + §3.6.8 (PP/outlets/Type-F 리팩토링) 적용 이력 |
+| `POWERPLAN.md` | 전원 콘센트 배치 인덱스 (방별 표 + 표준 마운트 높이 + PP 모드 동작 + 어셔션 카탈로그 + CL 이력). |
 | `MEMORY.md` | 사람용 프로젝트 기억 (계약·일정·자재 후보 등) |
 | `AGENT.md` | Agent SDK 표준 컨텍스트 (본 파일과 거의 동일 내용) |
 
@@ -25,14 +29,20 @@
 - 단축키:
   - `Space` — 프리/1인칭 토글, `WASD` 이동, `Q`/`E` 위/아래 또는 눈높이 ±1 cm, `R` 카메라 리셋
   - `SHIFT` — 마우스/크로스헤어 조준 객체 식별 + 치수 (W/D/H cm) 라벨
-  - **`1` / `Numpad1`** — 가구 일괄 표시/숨김 토글 (빈 공간/마감재 검토용)
+  - **`1` / `Numpad1`** — **전원 계획 모드** 토글: 신발장·욕실 가구 외 전부 hide + 콘센트 plate 노란 외곽선 + 미니맵 벽 번호만 + 콘센트 호버 시 라벨에 높이(cm) 추가 (SHIFT 시 벽 번호도 표시).
+  - **`M`** — 미니맵 표시/숨김
 - 디버그 모드: `index.html?debug` — 50 cm 그리드 + X/Z 축 + 가구 BBox 외곽선 + `window._mmData` 노출.
 - 레이아웃 변형: `index.html?variant=<name>` (현재는 인프라만 — 호출 사이트에 분기 추가 시 유효).
 - 콘솔 헬퍼 (디버그 모드 무관 항상 노출):
   - `_inspect(48)` 또는 `_inspect('FURN#48')` — 가구 메타 조회
   - `_gap(48, 49)` — 두 가구 BBox 간 xz 클리어런스 (cm)
   - `_listRoom('욕실')` — 한 방의 가구 목록
-- init-time 어셔션 (실패 시 콘솔 경고): `[M]`/`[P]`/`[U]` 인덱스 일관성, `[CC]` 가구-가구·가구-벽 충돌.
+  - `_outletStats()` — OUTLETS 통계 (total / totalGangs / byRoom / byKind)
+- init-time 어셔션 (실패 시 콘솔 경고 + **화면 상단 빨간 띠** `#assert-banner`):
+  - `[M]`/`[P]`/`[U]` 인덱스 일관성 / `[CC]` 가구-가구·가구-벽 충돌 (minimap.js)
+  - `[O]` OUTLETS face/gangs/좌표/kind 범위 검사 (outlets.js)
+  - `[PP]` _ppFurnsToHide 범위 / _ppOutlines = _outlets 일치 (powerplan.js, 1 키 토글 시)
+  - 모두 `console.assert` / `console.warn` monkey-patch 로 자동 띠 표시 (CL 50412).
 
 ## 안정 식별자 시스템
 모든 객체는 글로벌 `@TYPE#NN` 번호로 참조한다. 미니맵 배지 = ROOMS+DOORS+FURN+i 누적합:
@@ -63,13 +73,14 @@ LLM 은 “@FURN#48” 같은 식으로 grep 하면 `FURN_META`, `FURNITURE[]`, 
 | 바닥 타일 톤 | `TILE_CONFIG.baseColors` |
 | 벽지 톤 (전체) | `WALLPAPER_CONFIG.baseColor` |
 | 벽지 (방별) | `WALLPAPER_OVERRIDES['방이름'] = { baseColor:..., ... }` 후 빌더 측 적용 |
-| 방 자재 프로필 조회/변경 | `ROOM_PROFILE['방이름']` |
 | 우드톤 가구 일괄 변경 | `PAL.wood.*` (마이그레이션된 가구만; 미마이그레이션은 IIFE 인라인) |
 | 신규 가구 추가 | `defineFurniture` 권장 + `FURN_META[id]` + `FURNITURE[]` + `FURNITURE_BBOX[]` + (인터랙티브 도어) `_doors.push` + `DOORS[]` |
 | 신규 미닫이 도어 추가 | `_doors.push({kind:'slide', linkGroup:'<id>', pivot, doorMesh, slideAxis, slideOrigin, slideOpen, isOpen})` + `DOORS[]` 동기. doorMesh 는 패널 Group — `_toggleDoorAtNDC` 가 recursive intersect + 부모 체인 매칭. linkGroup 일치하는 모든 패널 동기 토글. animate 루프 `pivot.position[slideAxis]` 보간 (회전형은 `pivot.rotation[axis]`). |
+| 콘센트 추가/이동/제거 | **`outlets.js` 의 `OUTLETS` 배열** 만 수정. 형식 `{x, y, z, face, gangs, kind?, label}`. `face` = N/S/E/W (콘센트가 향하는 방향). 자세한 가이드는 [`POWERPLAN.md`](./POWERPLAN.md). 추가 후 `_outletStats()` 콘솔 헬퍼로 통계 확인. |
+| 콘센트 형태 변경 (모양·치수·돌출) | `outlets.js` buildOutlet IIFE 의 상수 (`W_PER_GANG`, `HEIGHT`, `PLATE_T`, `CLEARANCE`, `CUP_R`, `PIN_R`, `PIN_DX`, `Z_CUP_EPS`, `Z_PIN_EPS`) + `gangLayout(gangs)` 함수 (gangs → {W,H,positions[]}) + `FACE` lookup table. 한국 220V Type-F 표준 — 1·3·4구는 가로, 2구는 세로. |
+| PP 모드 동작 변경 | **`powerplan.js`** 의 `_initPowerPlanCache()` (분류 — outletSet/doorSet/structMats/_wpTex/bboxes + isPreserved 헬퍼 + XZ_SLACK/Y_TOL/SIZE_BUF/DOOR_SLACK), `setPowerPlanMode(on)` (visIdxs / mesh visibility), `minimap.js _updateAimLabel` (PP+SHIFT 시 콘센트+벽 한정 — `PP_AIM_TYPES_*` set). [`POWERPLAN.md`](./POWERPLAN.md) §"PP 모드 동작 요약". |
 | 미니맵 배지 식별 | 마우스를 미니맵 위에 hover — 주변 36 px 안 배지가 64+ px 원에 펼쳐져 콜아웃 표시 (밀집 영역 disambiguation, CL 50276). |
 | 가구 후보 카탈로그 조회 | `FURN_CATALOG` (제크리/이안빅/블룸 옷장, LG DIOS 가전, 데스커 책장/책상 등) |
-| 레이아웃 A/B 변형 | `?variant=<name>` URL + `if (notVariant('...')) ...` 분기 |
 | 벽 위치 이동 | `DESIGN.md §3.7.1` 체크리스트 9 단계 (3D 벽 + 벽지 + 걸레받이 + 바닥 + 천장 + 미니맵 ROOMS/WALLS + 인접 가구 + 벽 의존 문) |
 | 측정값 반영 | 해당 위치 + 주석에 `@MEASURED YYYY-MM-DD` 마커 |
 
@@ -113,4 +124,4 @@ LLM 은 “@FURN#48” 같은 식으로 grep 하면 `FURN_META`, `FURNITURE[]`, 
 2. SHIFT + 마우스 조준으로 라벨/치수가 의도대로 갱신되는지 확인.
 3. `?debug` 로 가구 BBox 가 메시와 정렬됐는지 시각 확인.
 4. 1인칭 모드(`Space` 키)로 동선/공간감 확인.
-5. `1` 키로 가구 숨겨 빈 공간/마감재 확인 (필요 시).
+5. `1` 키로 전원 계획 모드 진입 — 신발장/욕실 가구 외 모두 사라지고 콘센트 외곽선·라벨이 의도대로 동작하는지 확인. `M` 키로 미니맵 토글.

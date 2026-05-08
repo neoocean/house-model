@@ -2,15 +2,17 @@
 
 > ⚠️ **공개 GitHub repo (`house-model`)** — 단지명·계약자·금액·외부 파일명 등 신상 식별 정보 추가 절대 금지. [PRIVACY.md](./PRIVACY.md) 참조.
 >
-> 본 문서는 `model/` 디렉토리의 현재 빌드 상태를 기록한다 (P4 CL 50248 / 미러 워크플로우 정착).
+> 본 문서는 `model/` 디렉토리의 현재 빌드 상태를 기록한다 (P4 CL 50402 기준 / PP 모드 정착 / outlets.js 분리).
 > 코드 자체가 권위 자료이며, 본 문서는 그 의도·동작·구조를 빠르게 파악하기 위한 안내서다.
 >
-> **빌드 구성** (총 ~880 KB):
-> - `index.html` — 2 078 줄 / 105 KB. 메인 HTML + UI/CSS + 인라인 JS (씬·라이팅(`LIGHTING`)·재료(`PAL`)·`ROOM_PROFILE`·`VARIANT`·레이아웃·헬퍼·텍스처(`TILE_CONFIG`/`WALLPAPER_CONFIG`)·`WALLPAPER_OVERRIDES`·바닥·천장·외벽·내벽·걸레받이·문·라벨·조명·벽지·키친핏·외부문·신발장·**`OUTLETS` 17 개 + `_outlets[]` 레지스트리**·카메라·컨트롤·1 키 가구 토글·디버그·애니메이션 루프). `_doors[]` 애니메이션 루프는 `axis` 필드(기본 `'y'` 스윙, `'x'`/`'z'` 플랩) 분기 보간.
+> **빌드 구성** (총 ~920 KB):
+> - `index.html` — ~2 600 줄 / 132 KB. 메인 HTML + UI/CSS + 인라인 JS (씬·라이팅(`LIGHTING`)·재료(`PAL`/`mSkirting` 전역)·레이아웃·헬퍼·텍스처(`TILE_CONFIG`/`WALLPAPER_CONFIG`)·`WALLPAPER_OVERRIDES`·바닥·천장·외벽·내벽·걸레받이·문·라벨·조명·벽지·키친핏·외부문·신발장·영림 3연동 중문·**어셔션 시각 띠 + console.assert/warn monkey-patch**·카메라·컨트롤·M 키 미니맵 토글·디버그·애니메이션 루프). `_doors[]` 애니메이션 루프는 `axis` 필드(기본 `'y'` 스윙, `'x'`/`'z'` 플랩, `kind:'slide'` 미닫이) 분기 보간. **PP 모드 (1 키 토글) 는 powerplan.js 로 분리됨.**
+> - `outlets.js` — ~210 줄 / 9 KB. `OUTLETS` 배열 (27 항목) + `_outlets[]` 레지스트리 + `gangLayout()` + `buildOutlet` IIFE. **한국 220V Type-F 형태**: 원형 리세스 컵 ⌀46mm + 둥근 핀 홀 2개 ⌀4.4mm 19mm 가로 간격. **2구만 세로 배치** (1/3/4구는 가로). 벽으로부터 돌출 ~37mm (CLEARANCE 35mm + plate 두께 1.5mm). 사용자 요청 (CL 50383) 으로 index.html 인라인 2 에서 분리, inline 1 직후 furniture.js 직전 로드. `_outletStats()` 콘솔 헬퍼 노출.
+> - `powerplan.js` — ~190 줄 / 9 KB. 전원 계획 모드 (1 키 토글). `setPowerPlanMode` / `_initPowerPlanCache` (분류 휴리스틱 + isPreserved 헬퍼 + doorSet 분류) / `_initOutletOutlines` / `_buildPpVisIdxs` / Digit1 keydown 리스너. inline 2 직후 (모든 _doors push 완료 후) minimap.js 직전 로드 — CL 50409 분리.
 > - `furniture.js` — 2 127 줄 / 105 KB. `FURN_REGISTRY` + `FURN_META` (27 개) + `FURN_CATALOG` (13 종 템플릿) + 가구 IIFE 27 개 (드럼세탁기·소파·다이닝·자전거·침대·책상·책꽂이 3종·벽걸이 자전거·신발장·붙박이장·주방 4종(하부 앞/우, 상부 앞, **축소판 반투명 플랩 상부 우**)·욕실 위생기구·벽등).
-> - `minimap.js` — 1 208 줄 / 60 KB. 미니맵 IIFE (`ROOMS`/`WALLS`/`DOORS`/`FURNITURE`/`WINDOWS` 데이터 + `WINDOWS_BBOX`/`FURNITURE_BBOX`/`WINDOWS_H`/`WINDOWS_Y0` + 정적 레이어 캐시 + 번호 배지 + SHIFT 치수 표시·**콘센트 하이라이트** + 어셔션 §M/§P/§U/§CC + 콘솔 헬퍼 `_inspect`/`_gap`/`_listRoom`).
+> - `minimap.js` — ~1 400 줄 / 65 KB. 미니맵 IIFE (`ROOMS`/`WALLS`/`DOORS`/`FURNITURE`/`WINDOWS` 데이터 + `WINDOWS_BBOX`/`FURNITURE_BBOX`/`WINDOWS_H`/`WINDOWS_Y0` + 정적 레이어 캐시 + 번호 배지 (cat 필드, **PP 모드 시 wall 만 표시**) + SHIFT 치수 표시·콘센트 하이라이트·**PP 모드 SHIFT 시 콘센트+벽 한정 라벨** + 어셔션 §M/§P/§U/§CC + 콘솔 헬퍼 `_inspect`/`_gap`/`_listRoom`).
 > - `vendor/three.min.js` — 600 KB. Three.js 0.150.1 (UMD, MIT). `vendor/THREE_LICENSE` 동봉.
-> - `DESIGN.md` (본 문서) / `MEMORY.md` / `CLAUDE.md` / `AGENT.md` / `PRIVACY.md` / `README.md` (GitHub 만).
+> - `DESIGN.md` (본 문서) / `POWERPLAN.md` (전원 콘센트 배치 인덱스) / `MEMORY.md` / `CLAUDE.md` / `AGENT.md` / `PRIVACY.md` / `README.md` (GitHub 만).
 >
 > 빌드 단계 없음 — 브라우저에서 `index.html` 을 열기만 하면 된다.
 >
@@ -306,6 +308,115 @@
 - **CL 50289**: 중문 인터랙티브 미닫이 시스템 (§4.16). `_doors[]` 에 `kind:'slide'` 분기 도입 — `pivot.position[slideAxis]` 보간. `linkGroup:'jungmun'` 으로 3 패널 동기 토글. raycast 의 `intersectObjects(_, true)` recursive 활성화 + 부모 체인 매칭. DOORS.length 33→36 → 후속 카테고리 배지 +3 시프트 (§4.19).
 - **CL 50296**: 중문 위치 신발장 좌측 부착 (§4.17). x=7.8→**xJM=8.855** (신발장 좌면 4 mm 시각 갭), 트랙 8.825/8.855/8.885. z 범위 1.50→**1.38 m** (zM1+WT/2 ~ zM2-WT/2, 침실1·창고 벽 내면 사이 — 솔리드 벽 침투 회피). panelW 0.50→0.46.
 - **CL 50302**: 현관 녹색 영역 중문 정렬 (§4.18). mEntry 슬라브 west edge 8.7→**8.896** (중문 동측 패널 동면). 노출된 영역에 `buildTileFloor()` quad 추가 + 라이저 동기.
+
+> **CL 갭 안내**: §3.6.7 (CL 50270~50302) 와 §3.6.8 (CL 50372~) 사이의 CL 50303~50371 은
+> 본 model/ 디렉토리 외 (다른 P4 작업 영역) 에서 발생한 CL 들이거나, 본 디렉토리 내에서도
+> 사소한 변경(주석/문서/가구 작은 위치 조정 등)이라 별도 §로 정리하지 않음. 의미있는
+> 변경 추적은 `p4 changes -m N ./...` 또는 P4 web UI 로 조회.
+
+### 3.6.8. 전원 계획 (PP) 모드 + outlets.js 분리 + 한국 220V Type-F (CL 50372 ~ 50416)
+
+전원 콘센트 검토를 위한 별도 시각 모드 + 콘센트 데이터·빌더 외부 파일 분리 + 한국 표준 콘센트 형태 적용. 30+ CL 누적, 18+ 사용자 요청 처리.
+
+#### A. 전원 계획 모드 (PP, **`1` 키 토글**)
+
+`index.html` 의 `_initPowerPlanCache()` / `_initOutletOutlines()` / `setPowerPlanMode(on)` + Digit1 keydown 리스너. PP 진입 시:
+
+1. **가구 분류 캐싱** (`_initPowerPlanCache`, 1 회만 실행):
+   - hide 대상 bbox 목록 = `FURN_META` 의 모든 항목 — 단 `id===50` (신발장) + `room==='욕실'` (변기·세면대·샤워파티션·휴지걸이·거울장·벽등 7 종) **제외**.
+   - `scene.traverse` 로 메시들을 분류:
+     - 콘센트 plate / 자식 hole 메시 (outletSet) 제외
+     - 구조 머티리얼 (`mWall` / `mExt` / `mBath` / `mBal` / `mEntry` / `mCeil` / `mWin` / **`mSkirting`** 전역) 제외 → 벽·외벽·바닥(욕실/발코니/현관)·천장·창문 유리·걸레받이 보존
+     - 벽지 / 아치 스팬드럴 (material.map === `_wpTex`) 제외
+     - **벽 도어 보존, 캐비닛 도어 hide**: 도어 pivot xz 가 hide-target 가구 bbox 안 (DOOR_SLACK ±5cm) 이면 캐비닛 도어로 분류 → 부모 가구와 함께 hide. 그 외 (방 사이 / 외부 / 신발장 / 영림 중문) = 벽 도어 → 보존.
+     - 나머지 메시 중 어떤 hide-target bbox 안에 xz 중심 (SLACK ±20cm) + y 중심 (±50cm) + 사이즈 (bbox + 80cm 이내) 모두 통과 → `_ppFurnsToHide` 등록
+   - 결과: ~480 메시 hide 대상 (가구 동), 신발장·욕실·구조·벽 도어·콘센트는 보존.
+2. **콘센트 외곽선** (`_initOutletOutlines`, 1 회): 각 콘센트 plate 마다 `THREE.BoxHelper(plate, 0xffe040)` 생성, depthTest false / opacity 0.95 / `box.raycast = function(){}` (Line threshold 1m 이 plate hit 가로채는 회귀 회피). PP 진입 시 visible=true / 종료 시 false.
+3. **시각 효과**: hide 대상 메시 visible=false (이전 visible 상태 `m.userData._ppPrev` 보존). 콘센트 outline 전부 표시. 우상단 `🔌 전원 계획 모드` 주황 배지 표시.
+4. **SHIFT-aim 동작 변경** (`minimap.js _updateAimLabel`):
+   - PP 모드 + SHIFT 미누름 → 콘센트만 라벨 (방·문·벽·창·가구 모두 무시).
+   - PP 모드 + SHIFT 누름 → 콘센트 + **벽** 라벨 (사용자 요청, 벽 번호 식별용).
+   - 콘센트 hit 시 라벨 형식: `콘센트 N: <라벨> (<구>구[, 방수]) • 높이 ## cm` (높이는 spec.y * 100).
+5. **미니맵 배지 변경** (`minimap.js drawNumberOverlay`):
+   - 각 배지에 `cat: 'room' / 'door' / 'furn' / 'wall' / 'win'` 필드.
+   - PP 모드 활성 시 `cat === 'wall'` 만 hover-spread / 일반 배지 / 콜아웃 그림 — 다른 카테고리 모두 숨김. 결과: PP 모드에서 미니맵에 벽 번호 (43 개) 만 표시.
+
+복원 (`setPowerPlanMode(false)`): 메시 visible 복원 / outline visible=false / 배지 숨김 / `window._ppVisibleFurnIdxs = null` (SHIFT-aim 가구 라벨 모두 복원).
+
+#### B. `outlets.js` 분리 (CL 50383)
+
+이전 OUTLETS 데이터 + buildOutlet IIFE 가 `index.html` 인라인 2 안에 있던 것을 별도 `outlets.js` (~165 줄) 로 분리. 사용자 요청 — 콘센트 배치만 자주 수정되므로 단일 파일에 격리.
+
+**로드 순서**: `vendor/three.min.js` → 인라인 1 (layout 상수·scene·makeLambert) → **`outlets.js`** (OUTLETS 평가·buildOutlet 실행) → `furniture.js` → 인라인 2 (POWER PLAN MODE 등) → `minimap.js` → 인라인 3 (animate). 클래식 스크립트 글로벌 공유로 `_outlets` / `OUTLETS` 가 후속 스크립트에서 참조됨.
+
+#### C. 한국 220V Type-F 형태 (CL 50383 / 50390)
+
+`buildOutlet` IIFE 가 각 콘센트 plate 와 그 위 cup·pin 메시 생성:
+- **plate**: `BoxGeometry(W, plateH, PLATE_T=0.003)`. 1·3·4 구는 가로 = `W = 72mm × gangs`, `plateH = 120mm`. **2 구만 세로 — `W = 72mm`, `plateH = 144mm`** (사용자 요청 CL 50390).
+- **cup**: 각 gang 중심에 `CircleGeometry(CUP_R=23mm)` 평면 원 (matCup 살짝 어두운 회색 #c8c8c8), plate 전면 z=+0.0002.
+- **pin**: cup 위 `CircleGeometry(PIN_R=2.2mm)` 둥근 핀 홀 2 개 (matPin #1a1a1a), 가로 간격 19mm (PIN_DX=±0.0095), z=+0.0004.
+- **벽으로부터 돌출**: `CLEARANCE = 0.035m` + `PLATE_T/2 = 0.0015m` ≈ 37mm (CL 50398: 사용자 요청 +2cm 추가 돌출).
+- **face / roty**: spec.face = 'N'/'S'/'E'/'W' → plate 의 roty (Y 회전) 와 z/x 오프셋. 벽 내면 좌표 (spec.x/z) + face 방향 off 만큼 plate 가 실내로 돌출.
+
+#### D. 콘센트 배치 현황 (27 항목)
+
+각 콘센트의 위치·구수·종류는 [`POWERPLAN.md`](./POWERPLAN.md) 의 방별 표 참조. 주요 패턴:
+
+- **상하 페어** (사용자 패턴 — y=1.80 상부 + y=0.40 하부, 2 구 세로):
+  - 벽 81 (주방 좌측, x=5.22), 벽 94 (주방 우벽, z=2.60), 벽 107 (창고2 남벽 좌측, x=0.65)
+- **욕실 방수형** (`kind: 'wet'`): 거울수납장 안쪽 (1.45m, 2구) / 비데용 (0.40m, 1구) / 휴지걸이 좌하 (0.40m, 1구)
+- **숨김 위치 (가구 뒤·캐비닛 안)**: 냉장고 뒤 (벽 106, 0.40m) — 사용자가 의도한 가전 직배선 위치. 거울수납장 안쪽 1.45m — 헤어드라이어/면도기 등 욕실 가전 격리.
+
+#### E. 주요 CL 이력
+
+- CL 50372: CLEARANCE 5mm → 15mm (1cm 추가 돌출, 초기 PP 작업 전)
+- CL 50376~50382: PP 모드 (1 키 토글) 추가. 가구 hide / outlet outline / aim 라벨 + 높이 표시. 욕실 가구 visible 정책 정착.
+- CL 50383: 한국 Type-F 형태 + outlets.js 분리 + 일괄 OUTLETS 추가/이동.
+- CL 50384/50387: PP 모드 도어 분류 — 캐비닛 도어 hide / 벽 도어 보존 (DOOR_SLACK ±5cm).
+- CL 50386: PP+SHIFT 시 벽 번호 표시.
+- CL 50389: PP 미니맵 — 벽 번호만 표시 (cat 필터).
+- CL 50390: 2 구 세로 배치 (한국 Type-F 세로 2 구).
+- CL 50398: CLEARANCE 15mm → 35mm (+2cm 추가 돌출).
+- CL 50402: [`POWERPLAN.md`](./POWERPLAN.md) 신설.
+- CL 50403: DESIGN.md / CLAUDE.md 의 PP 모드·outlets.js·Type-F 반영.
+- CL 50404 ~ 50408: 코드 위생 리팩토링 — H1 (휴리스틱 상수 hoist) / H2 (isPreserved 헬퍼) / H3 (PP+SHIFT 분기 set 일반화) / M1 (gangLayout 함수) / M2 (face lookup table).
+- CL 50409 / 50410: PP 모드 → `powerplan.js` 분리 (S1) + visIdxs 캐시 (M3).
+- CL 50411: outlets.js `_outletStats()` 콘솔 헬퍼 (L4).
+- CL 50412: 어셔션 시각 띠 + console.assert/warn monkey-patch + [PP] 어셔션 (L7/S2).
+- CL 50413: outlets.js 헤더 표 정정 (L1) + cup/pin Z 오프셋 named const (L8).
+- CL 50414: 죽은 ROOM_PROFILE / VARIANT 참조 정리 + AGENT.md 빌드 구성 갱신 (M4).
+- CL 50415: powerplan.js _ppBadge lazy 조회 (L5).
+- CL 50416: powerplan.js parseInt → Number (L2).
+- CL 50417: DESIGN.md CL 갭 안내 + 최근 리팩토링 CL 이력 추가 (L6).
+- CL 50418: PAL.mat 구조 머티리얼 단일 원천 alias (S3).
+- CL 50419: outlets.js [O] 데이터 init-time 검증 어셔션 (S4) — face/gangs/x/y/z/kind 범위 검사.
+- CL 50420: powerplan.js 도어 카테고리 메타 캐시 — _doors[i].category = 'wall'|'cabinet' (S5).
+
+상세 배치 변경(추가/제거/이동) 은 `p4 describe -s <CL>` 또는 `POWERPLAN.md` §"변경 요약" 참조.
+
+#### F. 코드 위생 / 자동 검증 정책 (현재 상태)
+
+리팩토링 라운드 이후 PP 모드 + outlets 시스템의 코드 품질·검증 인프라 정리:
+
+**모듈 분리**:
+- `outlets.js` ← OUTLETS + buildOutlet + gangLayout + face lookup + _outletStats
+- `powerplan.js` ← PP 모드 (캐시·outline·visIdxs·토글 키)
+- `index.html` 인라인 2 ← 가구 IIFE 외 / 벽지·키친핏·외부문·신발장·중문·어셔션 시각 띠
+- 통합 PAL.mat alias 로 구조 머티리얼 단일 원천 (mWall 등)
+
+**자동 검증 시스템** (auto-check on init/toggle):
+- `[M]` `[P]` `[U]` `[CC]` (minimap.js) — 인덱스 일관성 / FURN_REGISTRY ↔ 배열 / FURN_META ↔ 배열 / 가구 충돌
+- `[O]` (outlets.js) — OUTLETS face/gangs/좌표/kind 범위 검사
+- `[PP]` (powerplan.js) — _ppFurnsToHide 합리적 범위 / _ppOutlines = _outlets 일치
+- 모두 화면 상단 빨간 띠 (`#assert-banner`) 에 표시 — console.assert / console.warn monkey-patch 로 자동 후크
+
+**콘솔 헬퍼** (사용자가 콘솔에서 수동 질의):
+- `_inspect(48)` / `_gap(48,49)` / `_listRoom('욕실')` (minimap.js)
+- `_outletStats()` (outlets.js) — total / totalGangs / byRoom / byKind 반환
+
+**카테고리 메타** (디버그·외부 조회용):
+- `_doors[i].category = 'wall' | 'cabinet'` (PP 캐시 init 시 자동 부착)
+- `cat: 'room' | 'door' | 'furn' | 'wall' | 'win'` 미니맵 배지 필드 (PP 모드 필터링)
 
 ### 3.7. 변경 시 주의점
 

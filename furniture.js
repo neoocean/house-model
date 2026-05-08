@@ -1554,22 +1554,20 @@ defineFurniture({
   var dL   = L - dGap*2;             // 도어 길이 = 1.956
   var dH   = (UH/2) - dGap*2;        // 도어 높이 = 0.401 (각 단)
 
+  // 사용자 요청 (재변경): 문 40 (ti=1, 상단) 도 문 39 와 같은 플랩 형태로 복원.
+  // 두 단(하단/상단) 모두 z 축 플랩 도어, 위로 들어올림.
   for (var ti = 0; ti < 2; ti++){
-    // ti=0 (하단): 힌지 y = midY, ti=1 (상단): 힌지 y = topY
     var hingeY = (ti === 0) ? midY : topY;
     var pivot  = new THREE.Object3D();
-    pivot.position.set(x1, hingeY, zC);     // 도어 힌지 (전면 상단 모서리)
+    pivot.position.set(x1, hingeY, zC);
     scene.add(pivot);
 
-    // 도어 패널 — 피벗 약간 아래·앞으로 매달림
-    //   로컬 (-DT/2, -dH/2-dGap, 0): 닫힘 시 패널 전면이 캐비닛 전면(x=7.42)에서 살짝 돌출.
     var panel = new THREE.Mesh(new THREE.BoxGeometry(DT, dH, dL), mDoor);
     panel.position.set(-DT/2, -dH/2 - dGap, 0);
     panel.castShadow = true;
     panel.receiveShadow = true;
     pivot.add(panel);
 
-    // 도어 상단 그루브 (푸시오픈 표현, 부엌에서 보이는 면)
     var groove = new THREE.Mesh(
       new THREE.BoxGeometry(0.002, 0.008, dL*0.85),
       new THREE.MeshLambertMaterial({color:0x404040})

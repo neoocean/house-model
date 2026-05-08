@@ -101,6 +101,25 @@ kbd{
   border:1px solid rgba(255,255,255,.3);
   pointer-events:none; display:none;
 }
+#power-plan-badge{
+  position:fixed; top:54px; right:14px;
+  background:rgba(255,128,48,.92); color:#000;
+  font:bold 13px 'Malgun Gothic',sans-serif;
+  padding:9px 18px; border-radius:20px;
+  border:1px solid rgba(0,0,0,.25);
+  pointer-events:none; display:none;
+}
+#assert-banner{
+  position:fixed; top:0; left:0; right:0;
+  background:rgba(220,40,40,.92); color:#fff;
+  font:bold 13px 'Malgun Gothic',sans-serif;
+  padding:8px 16px;
+  border-bottom:2px solid rgba(0,0,0,.3);
+  pointer-events:auto;
+  white-space:pre-wrap;
+  z-index:10000;
+  display:none;
+}
 </style>
 </head>
 <body>
@@ -109,9 +128,12 @@ kbd{
   <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> — 이동<br>
   <kbd>마우스</kbd> — 시점 회전<br>
   <kbd>Space</kbd> — 카메라 모드 전환<br>
-  <kbd>Q</kbd> / <kbd>E</kbd> — 위 / 아래 <small style="color:#aaa">(프리: 비행 / 1인칭: 눈높이 ±1cm)</small>
+  <kbd>Q</kbd> / <kbd>E</kbd> — 위 / 아래 <small style="color:#aaa">(프리: 비행 / 1인칭: 눈높이 ±1cm)</small><br>
+  <kbd>1</kbd> — 전원 계획 모드<br>
+  <kbd>M</kbd> — 미니맵 표시/숨김
 </div>
 <div id="badge" style="background:rgba(30,110,220,.88)">👤 1인칭 모드</div>
+<div id="power-plan-badge">🔌 전원 계획 모드 — 1: 종료</div>
 <div id="ch">
   <svg width="24" height="24">
     <line x1="12" y1="3" x2="12" y2="21" stroke="white" stroke-width="1.5"/>
@@ -125,6 +147,50 @@ kbd{
 <div id="minimap-legend"></div>
 <div id="drag-arm-bar"><div id="drag-arm-fill"></div></div>
 <div id="aim-label"></div>
+<div id="assert-banner"></div>
+<script>
+// 어셔션 실패 시 화면 상단 빨간 띠 표시 (사용자 시각 인지). 여러 호출 시 누적.
+// console.assert / [CC] console.warn 모두 monkey-patch 로 잡아 화면 띠와 동기화.
+window._assertFail = function(category, msg){
+  var el = document.getElementById('assert-banner');
+  if (!el) return;
+  var line = '⚠️ [' + category + '] ' + msg;
+  // 동일 메시지 중복 방지
+  if (el.textContent.indexOf(line) >= 0) return;
+  el.textContent = el.textContent ? (el.textContent + '\n' + line) : line;
+  el.style.display = 'block';
+};
+
+(function(){
+  // console.assert 후크 — 실패 시 [CATEGORY] 접두 추출 후 _assertFail 호출
+  var origAssert = console.assert.bind(console);
+  console.assert = function(cond){
+    origAssert.apply(null, arguments);
+    if (!cond) {
+      var msg = '';
+      for (var i = 1; i < arguments.length; i++) {
+        msg += (i > 1 ? ' ' : '') + arguments[i];
+      }
+      var m = msg.match(/^\[(\w+)\]\s*/);
+      window._assertFail(m ? m[1] : 'ASSERT', m ? msg.substring(m[0].length) : msg);
+    }
+  };
+  // console.warn 후크 — 첫 인자가 '[CC]' / '[PP]' 등 카테고리 접두면 띠에 표시
+  var origWarn = console.warn.bind(console);
+  console.warn = function(){
+    origWarn.apply(null, arguments);
+    var first = arguments[0];
+    if (typeof first === 'string') {
+      var m = first.match(/^\[(\w+)\]\s*/);
+      if (m) {
+        var rest = first.substring(m[0].length);
+        for (var i = 1; i < arguments.length; i++) rest += ' ' + arguments[i];
+        window._assertFail(m[1], rest);
+      }
+    }
+  };
+})();
+</script>
 
 <!-- Three.js 0.150.1 (UMD) — 동일 디렉토리에 벤더링됨 (vendor/three.min.js).
      SHA-256: 72c8a8302444fb39cb8e04be1f556b2fdca798e606a99b4b37c8cfe3e3ee3272
@@ -228,6 +294,8 @@ const mDoor  = new THREE.MeshLambertMaterial({color:0x7a5828});
 const mEntry = new THREE.MeshLambertMaterial({color:0x5a9e60});  // 현관 신발공간 (녹색)
 const mWin   = new THREE.MeshLambertMaterial({color:0xadd8e8, transparent:true, opacity:0.4, side:THREE.DoubleSide}); // 창문 유리
 const mCeil  = new THREE.MeshLambertMaterial({color:0xf5f3ef, side:THREE.DoubleSide}); // 천장 (1인칭만 표시)
+// 걸레받이 (Skirting Boards) — 흰 약광택. 전역으로 노출해 PP 모드에서 구조 보존 Set 에 등록.
+const mSkirting = new THREE.MeshPhongMaterial({color:0xffffff, specular:0x303030, shininess:38});
 
 /* =====================================================================
    재료 팔레트 PAL (항목 L)
@@ -274,6 +342,20 @@ const PAL = {
 };
 PAL.matLever       = makePhong(PAL.metal.lever, {specular:0x909090, shininess:120});
 PAL.matCabinetDoor = makeLambert(PAL.wood.cabinetDoor);
+
+// 구조 머티리얼 단일 원천 alias (S3 — 머티리얼 단일 원천 통합).
+// 기존 const mWall / mExt / ... 인스턴스를 그대로 참조하는 네임스페이스.
+// 변경 없이 호환 — 새 코드는 PAL.mat.wall 등 가독성 있는 표기 가능.
+PAL.mat = {
+  wall:     mWall,      // 내벽
+  ext:      mExt,       // 외벽
+  bath:     mBath,      // 욕실 슬라브
+  bal:      mBal,       // 발코니 슬라브
+  entry:    mEntry,     // 현관 슬라브 (5cm 단차 녹색)
+  ceil:     mCeil,      // 천장
+  win:      mWin,       // 창문 유리
+  skirting: mSkirting   // 걸레받이 (전역)
+};
 
 /* =====================================================================
    LAYOUT CONSTANTS  (meters; 1 mm → 0.001 m)
@@ -815,9 +897,7 @@ HWD(mWall, xKit,  xBR,   zBath, 0.3, 0.8, DH);
                                           // → 박스 뒷면이 벽지 평면 앞 1mm: 안에서도 가려지지 않음
   var W2 = WT / 2;                       // 벽 반두께 = 0.06
 
-  var mB = new THREE.MeshPhongMaterial({
-    color:0xffffff, specular:0x303030, shininess:38
-  });
+  var mB = mSkirting;   // 전역 인스턴스 재사용 — PP 모드 구조 보존을 위함
 
   function H(x1,x2, zf, dz){
     B(x2-x1, BH, BD, mB, (x1+x2)/2, BY, zf+dz);
@@ -1271,6 +1351,7 @@ LIGHTING.rooms.forEach(function(r){
 });
 
 </script>
+<script src="outlets.js"></script>
 <script src="furniture.js"></script>
 <script>
 "use strict";
@@ -1709,9 +1790,9 @@ LIGHTING.rooms.forEach(function(r){
   var cW     = 0.98;                // 신발장 가로 (좌측 2칸 합계, 이전 1.18)
 
   // 도어를 몸체 양 외변 (cBaseX, cBaseX+cW) 에 flush 부착 — 사용자 요청
-  // (이전 좌·우 4cm 측면 이격 매움). 중앙 2cm 만 도어 사이 reveal 로 유지.
-  // panelW = (cW - centerGap)/2 = (0.98 - 0.02)/2 = 0.48 (이전 0.44).
-  var panelW   = 0.48;              // 단일 패널 폭 (이전 0.44, +4cm — flush 부착용)
+  // (이전 좌·우 4cm 측면 이격 매움). 중앙 reveal 2cm → 2mm 로 축소 (사용자 요청).
+  // panelW = (cW - centerGap)/2 = (0.98 - 0.002)/2 = 0.489 (이전 0.48).
+  var panelW   = 0.489;             // 단일 패널 폭 (이전 0.48, +9mm — 중앙 reveal 2mm)
   var panelH   = cH - 0.06;        // 2.34
   var panelCY  = cH / 2;            // 1.20 (패널 y 중심)
   var DT       = 0.020;             // 패널 두께 2cm
@@ -1924,109 +2005,22 @@ LIGHTING.rooms.forEach(function(r){
 })();
 
 /* =====================================================================
-   ELECTRICAL OUTLETS — 벽 콘센트 (데이터 중심 정의)
-   ----------------------------------------------------------------------
-   OUTLETS 배열에 위치/면방향/구수를 정의하면 buildOutlet() 가 일괄
-   생성. 추후 위치 조정·신규 추가·삭제는 OUTLETS 배열 한 곳만 수정.
-
-   각 항목 형식:
-     { x, y, z, face, gangs, kind?, label? }
-       x, y, z: 벽 *내면* (interior surface) 좌표 (m)
-                예: 남쪽 외벽 z=0 의 내면 z = WT/2 = 0.06
-                    북쪽 외벽 z=6.6 의 내면 z = 6.6 - WT/2 = 6.54
-                    동쪽 외벽 x=12 의 내면 x = 11.94
-                    서쪽 외벽 x=0  의 내면 x = 0.06
-       face: 'N' / 'S' / 'E' / 'W'  — 콘센트가 *향하는* 방향 (방 안쪽)
-                  N = +z 면 (남쪽 벽에 부착, 북쪽 향함)
-                  S = -z 면 (북쪽 벽에 부착, 남쪽 향함)
-                  E = +x 면 (서쪽 벽에 부착, 동쪽 향함)
-                  W = -x 면 (동쪽 벽에 부착, 서쪽 향함)
-       gangs: 1 / 2 / 3  — 구수 (각 gang 당 폭 72 mm)
-       kind:  'standard' (기본) / 'wet' (방수, 욕실용)
-       label: 자유 메모 (위치 식별용)
-
-   표준 마운트 높이 (한국 일반):
-     일반:        0.30 m  (바닥 위 30 cm)
-     주방 작업대: 1.10 m  (씽크 윗면 위 ~10 cm)
-     세탁기/가전: 1.20 m
-     세면대 위:   1.20 m  (방수)
-     비데용:      0.40 m  (방수)
-     에어컨용:    1.80~2.00 m (현재 미배치)
-
-   1구 플레이트: 72×120 mm, 2구: 144×120, 3구: 216×120, 두께 3 mm + 클리어런스 5 mm.
+   ELECTRICAL OUTLETS — 사용자 요청에 따라 outlets.js 로 분리됨.
+   본 위치(index.html 인라인 2 안) 에 있던 OUTLETS 데이터 + buildOutlet
+   빌더 IIFE 는 모두 outlets.js 로 이동. <script src="outlets.js"> 가
+   inline 1 직후 furniture.js 직전에 로드되며, OUTLETS / _outlets 는
+   글로벌 const 로 노출되어 후속 inline 2 (POWER PLAN MODE) 및 minimap.js
+   (_getAimInfo 의 콘센트 검출) 가 그대로 참조 가능.
 ===================================================================== */
-const OUTLETS = [
-  // ── 거실 (방 4) ─────────────────────────────────────────────────
-  { x: 1.985, y: 0.30, z: 0.06,            face: 'N', gangs: 2, label: '거실 소파 옆 (남쪽 벽)' },
-  { x: 4.50,  y: 0.30, z: 0.06,            face: 'N', gangs: 2, label: '거실 동측 (남쪽 벽)' },
-  { x: 3.60,  y: 0.30, z: zLR2 - WT/2,     face: 'S', gangs: 2, label: '거실 다이닝 옆 (북쪽 벽)' },
-  // ── 주방·식당 (방 5) ────────────────────────────────────────────
-  { x: 5.50,  y: 1.10, z: 0.06,            face: 'N', gangs: 3, label: '주방 작업대 좌 (인덕션 옆)' },
-  { x: 7.20,  y: 1.10, z: 0.06,            face: 'N', gangs: 2, label: '주방 작업대 우 (전자레인지)' },
-  { x: xBR - WT/2, y: 1.10, z: 1.50,       face: 'W', gangs: 2, label: '주방 우벽 작업대' },
-  { x: xBR - WT/2, y: 1.10, z: 2.30,       face: 'W', gangs: 2, label: '주방 우벽 (식기세척기)' },
-  // ── 침실 1 (방 7) ───────────────────────────────────────────────
-  { x: xHall - WT/2, y: 0.30, z: 0.50,     face: 'W', gangs: 2, label: '침실1 책상 좌' },
-  { x: xHall - WT/2, y: 0.30, z: 2.20,     face: 'W', gangs: 2, label: '침실1 남쪽' },
-  // ── 침실 2 (방 9) ───────────────────────────────────────────────
-  { x: 2.60,  y: 0.30, z: zB - WT/2,       face: 'S', gangs: 2, label: '침실2 침대맡 좌' },
-  { x: 4.00,  y: 0.30, z: zB - WT/2,       face: 'S', gangs: 2, label: '침실2 침대맡 우' },
-  // ── 욕실 (방 10) — 방수형 ──────────────────────────────────────
-  { x: 6.20,  y: 1.20, z: zB - WT/2,       face: 'S', gangs: 1, kind: 'wet', label: '욕실 세면대 위' },
-  { x: xKit + WT/2, y: 0.40, z: 5.70,      face: 'E', gangs: 1, kind: 'wet', label: '욕실 비데용' },
-  // ── 발코니 (방 3) ───────────────────────────────────────────────
-  { x: 0.50,  y: 1.20, z: zB - WT/2,       face: 'S', gangs: 2, label: '발코니 세탁기' },
-  // ── 연결통로 2 / 현관 (방 6) ────────────────────────────────────
-  { x: 9.30,  y: 0.30, z: zM1 + WT/2,      face: 'N', gangs: 1, label: '현관' },
-  // ── 복도 (방 8) ─────────────────────────────────────────────────
-  { x: 11.25, y: 0.30, z: zM2 - WT/2,      face: 'N', gangs: 1, label: '복도' },
-  // ── 창고 (방 11) ────────────────────────────────────────────────
-  { x: 8.50,  y: 0.30, z: zM2 + WT/2,      face: 'N', gangs: 2, label: '창고 (청소기/충전)' },
-];
+// ↑ OUTLETS / _outlets / buildOutlet 모두 outlets.js 로 분리됨 — 본 위치 비어 있음.
 
-// SHIFT-aim 검출용 글로벌 레지스트리 — 각 항목 {plate, spec}.
-// minimap.js 의 _getAimInfo() 가 hit.object 의 부모 체인이 plate 와 일치하는지 검사.
-const _outlets = [];
-
-(function(){
-  var W_PER_GANG = 0.072;
-  var HEIGHT     = 0.120;
-  var PLATE_T    = 0.003;
-  var CLEARANCE  = 0.005;     // 벽지(WT/2 + E=0.003) 로부터 추가 클리어런스
-  var matStd  = makeLambert(0xfafafa);
-  var matWet  = makeLambert(0xe8e8d8);   // 방수형: 살짝 베이지
-  var matHole = makeLambert(0x2a2a2a);
-  var holeGeo = new THREE.BoxGeometry(0.014, 0.005, 0.0006);
-
-  function buildOutlet(o){
-    var W = W_PER_GANG * o.gangs;
-    var mat = (o.kind === 'wet') ? matWet : matStd;
-    var off = CLEARANCE + PLATE_T / 2;
-    var px = o.x, py = o.y, pz = o.z, roty = 0;
-    if      (o.face === 'N') { pz += off; roty = 0; }
-    else if (o.face === 'S') { pz -= off; roty = Math.PI; }
-    else if (o.face === 'E') { px += off; roty = -Math.PI / 2; }
-    else if (o.face === 'W') { px -= off; roty = Math.PI / 2; }
-    var plate = new THREE.Mesh(new THREE.BoxGeometry(W, HEIGHT, PLATE_T), mat);
-    plate.position.set(px, py, pz);
-    plate.rotation.y = roty;
-    plate.castShadow = false;
-    plate.receiveShadow = true;
-    scene.add(plate);
-    // gang 마다 위·아래 두 개의 작은 검은 사각형 (소켓 hole)
-    for (var g = 0; g < o.gangs; g++){
-      var gx = -W/2 + W_PER_GANG/2 + g * W_PER_GANG;
-      for (var h = 0; h < 2; h++){
-        var hy = -0.010 + h * 0.020;
-        var hole = new THREE.Mesh(holeGeo, matHole);
-        hole.position.set(gx, hy, PLATE_T / 2 + 0.0003);
-        plate.add(hole);
-      }
-    }
-    _outlets.push({ plate: plate, spec: o });    // SHIFT-aim 검출/하이라이트 용
-  }
-  OUTLETS.forEach(buildOutlet);
-})();
+/* =====================================================================
+   POWER PLAN MODE — 사용자 요청에 따라 powerplan.js 로 분리됨 (CL 50409).
+   본 위치(index.html 인라인 2 안) 에 있던 PP 모드 로직 — 캐시·outline·visIdxs·
+   토글 키 모두 powerplan.js 로 이동. <script src="powerplan.js"> 가 inline 2
+   직후 (모든 _doors push 완료 후) 로드되어 글로벌 함수 setPowerPlanMode 와
+   keydown 리스너를 등록.
+===================================================================== */
 
 /* =====================================================================
    CAMERA  — 초기: 프리 카메라, 평면 전체 부감 (y=13, 정수직 하향)
@@ -2099,6 +2093,15 @@ document.addEventListener('keydown', function(e) {
       eyeHeight = Math.max(0.30, eyeHeight - 0.01);
       eyeLabel.textContent = Math.round(eyeHeight*100) + ' cm';
     }
+  }
+  // 미니맵 표시/숨김 토글 — e.code 사용 → 한글 IME 모드에서도 동작
+  if (e.code === 'KeyM') {
+    e.preventDefault();
+    var mc = document.getElementById('minimap');
+    var ml = document.getElementById('minimap-legend');
+    var hidden = (mc.style.display === 'none');
+    mc.style.display = hidden ? '' : 'none';
+    if (ml) ml.style.display = hidden ? '' : 'none';
   }
 });
 document.addEventListener('keyup', function(e) { keys[e.code] = false; });
@@ -2262,6 +2265,7 @@ document.addEventListener('mousemove', function(e) {
 });
 
 </script>
+<script src="powerplan.js"></script>
 <script src="minimap.js"></script>
 <script>
 "use strict";

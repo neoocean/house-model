@@ -143,7 +143,7 @@
     [7.14,  1.8975, '주방 하부장(우) 3'], // @DOOR#37 _doors[21]  @FURN#52 페어2 전
     [7.14,  2.3925, '주방 하부장(우) 4'], // @DOOR#38 _doors[22]  @FURN#52 페어2 후
     [7.55,  1.30,   '플랩 상부장(우) 도어 1(하)'], // @DOOR#39 _doors[23] @FURN#73 z축 플랩, 단=하단 (반투명)
-    [7.55,  2.00,   '플랩 상부장(우) 도어 2(상)'], // @DOOR#40 _doors[24] @FURN#73 z축 플랩, 단=상단 (반투명)
+    [7.55,  2.00,   '플랩 상부장(우) 도어 2(상)'], // @DOOR#40 _doors[24] @FURN#73 z축 플랩, 단=상단 (반투명) — 사용자 재요청으로 플랩 복원
     [6.030, 6.42,   '거울장 문'],         // @DOOR#41 _doors[25]  @FURN#57
     [6.55,  4.14,   '수납장 문'],         // @DOOR#42 _doors[26]  inline 2 (A 컬럼 단일)
     [7.075, 4.14,   '냉장고 문(좌)'],     // @DOOR#43 _doors[27]  inline 2 (B 컬럼, 양문형 좌)
@@ -325,9 +325,12 @@
 
     // 2) 가구 — bbox 안에 hit 점이 들어가는지 (5mm xz 인셋, y는 인셋 없음)
     //    bbox 6요소면 y 범위도 체크 (벽등 상/하 구분용)
+    //    전원 계획 모드: 숨겨진 가구는 라벨 표시 금지 (window._ppVisibleFurnIdxs 만 통과).
     var ins = 0.005;
     var matched = -1, bestDist = Infinity;
+    var ppmVisIdxs = (window.powerPlanMode && window._ppVisibleFurnIdxs) ? window._ppVisibleFurnIdxs : null;
     for (var i = 0; i < FURNITURE_BBOX.length; i++) {
+      if (ppmVisIdxs && !ppmVisIdxs.has(i)) continue;
       var b = FURNITURE_BBOX[i];
       if (p.x < b[0]+ins || p.x > b[2]-ins) continue;
       if (p.z < b[1]+ins || p.z > b[3]-ins) continue;
@@ -458,10 +461,16 @@
     }
   }
 
+  // PP 모드에서 aim 라벨이 반응하는 객체 type set — 새 카테고리 추가는 여기에만.
+  var PP_AIM_TYPES_NO_SHIFT   = new Set(['outlet']);
+  var PP_AIM_TYPES_WITH_SHIFT = new Set(['outlet', 'wall']);
+
   // 라벨 갱신 — 매 프레임 drawMinimap에서 호출
   // 1인칭: 화면 중앙(크로스헤어, NDC=0,0) / 프리: 마우스 커서 위치를 NDC로 변환
+  // 전원 계획 모드 (window.powerPlanMode): SHIFT 없이도 콘센트 hit 시 라벨 + 높이 표시.
   function _updateAimLabel(){
-    if (!_shiftHeld) {
+    var ppm = !!window.powerPlanMode;
+    if (!_shiftHeld && !ppm) {
       if (aimLabel.style.display !== 'none') aimLabel.style.display = 'none';
       _showDimensions(null);
       _showOutletHighlight(null);
@@ -481,14 +490,35 @@
       posX = '50%';
       posY = '50%';
     }
+    // 전원 계획 모드: 허용 type set 기반 분기 — 새 카테고리 추가 시 set 만 갱신.
+    //  - SHIFT 미누름: 콘센트만 반응
+    //  - SHIFT 누름:   콘센트 + 벽 (사용자 요청)
+    //  그 외 객체(방·문·창·가구) 는 PP 모드에서 항상 무시.
+    if (ppm) {
+      var ppAllowed = _shiftHeld ? PP_AIM_TYPES_WITH_SHIFT : PP_AIM_TYPES_NO_SHIFT;
+      if (!raw || !ppAllowed.has(raw.type)) {
+        if (aimLabel.style.display !== 'none') aimLabel.style.display = 'none';
+        _showDimensions(null);
+        _showOutletHighlight(null);
+        _resetAimStable();
+        return;
+      }
+    }
     var info = _stabilizedAim(raw);   // 200ms hysteresis 적용
     if (info) {
-      aimLabel.textContent = info.label;
+      var labelText = info.label;
+      // 전원 계획 모드 + 콘센트: 높이(cm) 추가 표시 — OUTLETS[i].y * 100
+      if (ppm && info.type === 'outlet' && typeof _outlets !== 'undefined') {
+        var spec = _outlets[info.n - 1].spec;
+        labelText += ' • 높이 ' + Math.round(spec.y * 100) + ' cm';
+      }
+      aimLabel.textContent = labelText;
       aimLabel.className = 't-' + info.type;
       aimLabel.style.left = posX;
       aimLabel.style.top  = posY;
       aimLabel.style.display = 'block';
-      _showDimensions(info);
+      // PP 모드에서는 dim sprite 생략 (콘센트는 dim 정보 없음). 일반 모드는 SHIFT 시 표시.
+      _showDimensions((_shiftHeld && !ppm) ? info : null);
       _showOutletHighlight(info.type === 'outlet' ? info.outletPlate : null);
     } else {
       aimLabel.style.display = 'none';
@@ -888,23 +918,23 @@
     var arr = [];
     var n = 1;
     ROOMS.forEach(function(r){
-      arr.push({n:n++, tx:mx((r[0]+r[2])/2), ty:mz((r[1]+r[3])/2),
+      arr.push({cat:'room', n:n++, tx:mx((r[0]+r[2])/2), ty:mz((r[1]+r[3])/2),
                 r:13, fontSz:14, bg:'#1a78d6', fg:'#fff'});
     });
     DOORS.forEach(function(d){
-      arr.push({n:n++, tx:mx(d[0]), ty:mz(d[1]),
+      arr.push({cat:'door', n:n++, tx:mx(d[0]), ty:mz(d[1]),
                 r:11, fontSz:12, bg:'#f5c518', fg:'#000'});
     });
     FURNITURE.forEach(function(f){
-      arr.push({n:n++, tx:mx(f[0]), ty:mz(f[1]),
+      arr.push({cat:'furn', n:n++, tx:mx(f[0]), ty:mz(f[1]),
                 r:10, fontSz:11, bg:'#3aa856', fg:'#fff'});
     });
     WALLS.forEach(function(w){
-      arr.push({n:n++, tx:mx((w[0]+w[2])/2), ty:mz((w[1]+w[3])/2),
+      arr.push({cat:'wall', n:n++, tx:mx((w[0]+w[2])/2), ty:mz((w[1]+w[3])/2),
                 r:9,  fontSz:11, bg:'#d6311a', fg:'#fff'});
     });
     WINDOWS.forEach(function(wn){
-      arr.push({n:n++, tx:mx(wn[0]), ty:mz(wn[1]),
+      arr.push({cat:'win', n:n++, tx:mx(wn[0]), ty:mz(wn[1]),
                 r:10, fontSz:11, bg:'#00a8c8', fg:'#fff'});
     });
 
@@ -983,6 +1013,10 @@
   function drawNumberOverlay(c) {
     if (!_badgeLayout) _badgeLayout = computeBadgeLayout();
 
+    // 전원 계획 모드: 미니맵에는 벽 번호만 표시 (사용자 요청). 그 외 (방·문·가구·창문) 배지 모두 숨김.
+    var ppm = !!window.powerPlanMode;
+    var ppFilter = function(b){ return ppm ? (b.cat === 'wall') : true; };
+
     // 0) hover 대상 배지 분류 — 실제 위치(tx,ty) 또는 배치 위치(bx,by)
     //    가 hover 점 R 안에 있는 것. 두 위치 모두 고려해야 함:
     //      · 실제 위치만 고려: 배지가 spiral 로 멀리 이동했을 때 시각 클러스터를
@@ -996,6 +1030,7 @@
     if (hover) {
       var R2 = HOVER_R * HOVER_R;
       _badgeLayout.forEach(function(b){
+        if (!ppFilter(b)) return;
         var dx1 = b.tx - hover.x, dy1 = b.ty - hover.y;
         var dx2 = b.bx - hover.x, dy2 = b.by - hover.y;
         var d1 = dx1*dx1 + dy1*dy1;
@@ -1009,6 +1044,7 @@
 
     // 1) 일반(spread 아님) 배지 — 기존 콜아웃 (실제 위치 점 + 연결선)
     _badgeLayout.forEach(function(b){
+      if (!ppFilter(b)) return;
       if (inSpread[b.n]) return;
       var dx = b.bx - b.tx, dy = b.by - b.ty;
       var d = Math.sqrt(dx*dx + dy*dy);
@@ -1035,6 +1071,7 @@
 
     // 2) 일반 배지 본체 (이동된 위치)
     _badgeLayout.forEach(function(b){
+      if (!ppFilter(b)) return;
       if (inSpread[b.n]) return;
       drawBadge(c, b.bx, b.by, b.n, b.bg, b.fg, b.r, b.fontSz);
     });
