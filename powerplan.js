@@ -168,7 +168,7 @@ function _initOutletOutlines(){
     '[PP] _ppOutlines.length(' + _ppOutlines.length + ') !== _outlets.length(' + _outlets.length + ')');
 }
 
-// SHIFT-aim 시 숨겨진 가구는 라벨 표시 금지. minimap.js _getAimInfo 가
+// SHIFT-aim 시 숨겨진 가구는 라벨 표시 금지. minimap.js _getAllAimInfo 가
 // FURNITURE_BBOX 인덱스를 이 Set 에 들어있는 것만 통과시킴.
 // visible 유지 대상: @FURN#50 신발장 + 욕실(room='욕실') 모든 가구
 //   (FURN_META id - 47 = FURNITURE/_BBOX 인덱스).

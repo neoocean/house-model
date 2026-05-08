@@ -74,24 +74,31 @@ kbd{
   width:100%;
   background:linear-gradient(90deg,#5cd06b,#3aa856);
 }
+/* aim-label 은 컨테이너 — 자식 .aim-item 을 세로로 쌓아 동시 표시 (CL 50463+).
+   여러 카테고리(문/콘센트/가구/창/벽/방) 가 동시에 적용되면 모두 표시. */
 #aim-label{
   position:fixed; top:50%; left:50%;
   transform:translate(-50%, 24px);
+  pointer-events:none;
+  display:none; z-index:9999;
+}
+#aim-label .aim-item{
+  display:block;
   background:rgba(0,0,0,.78); color:#fff;
   font:bold 13px 'Malgun Gothic',sans-serif;
   padding:6px 12px; border-radius:6px;
   border:1px solid rgba(255,255,255,.4);
   box-shadow:0 2px 8px rgba(0,0,0,.6);
-  pointer-events:none;
-  display:none; z-index:9999;
+  margin-top:4px;
   white-space:nowrap;
 }
-#aim-label.t-room   { background:rgba(26,120,214,.88); }
-#aim-label.t-door   { background:rgba(245,197,24,.88); color:#000; }
-#aim-label.t-furn   { background:rgba(58,168,86,.88); }
-#aim-label.t-outlet { background:rgba(255,128,48,.92); color:#000; }   /* 콘센트 — orange */
-#aim-label.t-wall { background:rgba(214,49,26,.88); }
-#aim-label.t-win  { background:rgba(0,168,200,.88); }
+#aim-label .aim-item:first-child{ margin-top:0; }
+#aim-label .aim-item.t-room   { background:rgba(26,120,214,.88); }
+#aim-label .aim-item.t-door   { background:rgba(245,197,24,.88); color:#000; }
+#aim-label .aim-item.t-furn   { background:rgba(58,168,86,.88); }
+#aim-label .aim-item.t-outlet { background:rgba(255,128,48,.92); color:#000; }   /* 콘센트 — orange */
+#aim-label .aim-item.t-wall   { background:rgba(214,49,26,.88); }
+#aim-label .aim-item.t-win    { background:rgba(0,168,200,.88); }
 #eye-label{
   position:fixed; top:50%; left:50%;
   transform:translate(20px, -50%);   /* 크로스헤어 우측에 표시 */
@@ -2010,7 +2017,7 @@ LIGHTING.rooms.forEach(function(r){
    빌더 IIFE 는 모두 outlets.js 로 이동. <script src="outlets.js"> 가
    inline 1 직후 furniture.js 직전에 로드되며, OUTLETS / _outlets 는
    글로벌 const 로 노출되어 후속 inline 2 (POWER PLAN MODE) 및 minimap.js
-   (_getAimInfo 의 콘센트 검출) 가 그대로 참조 가능.
+   (_getAllAimInfo 의 콘센트 검출) 가 그대로 참조 가능.
 ===================================================================== */
 // ↑ OUTLETS / _outlets / buildOutlet 모두 outlets.js 로 분리됨 — 본 위치 비어 있음.
 

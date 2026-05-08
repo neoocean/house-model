@@ -82,7 +82,7 @@
   - 가구: `FURNITURE_BBOX` (xz) + 높이 스캔 결과(`_computeFurnitureHeights()` 가 `scene.traverse` 로 bbox 안 메시 y 범위 계산, 스트럭처 제외 휴리스틱). 4-요소 BBox 가구의 높이 추정 실패 시 H 라벨 생략.
   - 벽: 길이/높이만 (두께 12 cm 표기 생략)
   - 창문: `WINDOWS_BBOX` 의 가로 길이 + `WINDOWS_H[i]` (parallel 배열)
-- **조준 안정화 (hysteresis)**: `_stabilizedAim()` 가 220 ms hold 적용. 첫 조준은 즉시 채택, 이후 다른 대상으로 전환은 후보가 220 ms 연속 유지될 때만. 객체 경계에서 1 px 단위 깜빡임 제거.
+- **다중 카테고리 동시 표시 (사용자 요청 2026-05-08)**: `_getAllAimInfo()` 가 한 위치에 적용되는 모든 카테고리 (문/콘센트/가구/창문/벽/방) info 객체를 배열로 반환. `_updateAimLabel()` 이 `#aim-label` 컨테이너 안 `.aim-item` 자식으로 stacked 렌더 — 각 항목이 본인 type 컬러 (t-room/t-door/t-furn/t-outlet/t-wall/t-win). 이전의 단일 라벨 + 220 ms hysteresis (`_stabilizedAim`) 는 제거 — 카테고리 전환이 사라져 hold 불필요. 우선순위 (배열 순서): 문/콘센트 → 가구 → 창문 → 벽 → 방. 치수 sprite 는 primary (배열 첫 번째) 매치만 표시.
 - 미니맵 번호 ↔ aim 라벨 ↔ 사용자 요청의 “○번 ○○” 가 정확히 일치 — 인덱스 일관성이 라벨 정확성의 전제 (어셔션 §M / §P 가 자동 검증).
 
 ### 2.6. 미니맵 (좌하단)
@@ -250,7 +250,7 @@
 - 모든 라벨/선분은 **bottom-front-left** 코너 `(x1, y0, z1)` 에서 각 축으로 뻗어나가는 모서리에 부착. 라벨은 모서리 정확히 중앙 → `──[ 360 cm ]──` 건축 도면 스타일.
 - `_computeFurnitureHeights()` — 4-요소 BBox 가구의 높이 추정 (`scene.traverse` 로 BBox 안 메시 y 범위 합집합 + 스트럭처 휴리스틱: 메시 XZ 범위가 BBox + 0.30 m 보다 크면 벽/바닥/천장으로 간주해 제외).
 - `_showDimensions(info)` — 매 프레임 `_updateAimLabel` 에서 호출. 대상 ID 무변동 시 sprite/line 재생성 생략.
-- `_stabilizedAim(raw)` — `AIM_HOLD_MS = 220` 시간 기반 hysteresis (자세한 사례는 §4.7).
+- `_getAllAimInfo(ndcX, ndcY)` — 한 위치 적용 모든 카테고리 info 배열 반환. 사용자 요청 (2026-05-08) 으로 단일 라벨 + 220 ms hysteresis (`_stabilizedAim`) 대신 다중 라벨 동시 표시 — 자세한 사례는 §4.7 / §4.20.
 - `_dimGroup.visible` 로 SHIFT 해제/aim 미명중 시 숨김. 텍스처·머티리얼·LineGeometry 모두 `dispose` 처리.
 
 ### 3.6.4. 시나리오 적합도 개선 (항목 U~DD)
@@ -279,10 +279,10 @@
 ### 3.6.5. 벽 콘센트 (`OUTLETS`) + SHIFT-aim 하이라이트
 - **데이터 정의** — `index.html` 의 신발장 섹션 다음에 데이터 중심 콘센트 시스템. 17 개 항목이 각 방의 표준 위치(소파 옆/주방 작업대 위/침대맡/세면대 위/세탁기/현관 등) 에 배치됨. `OUTLETS = [{x, y, z, face, gangs, kind?, label?}, ...]` 의 한 객체 추가/삭제로 콘센트 추가/제거. `face` 는 콘센트 패널이 *향하는* 방향(N/S/E/W = +z/-z/+x/-x), `x/y/z` 는 벽 내면 좌표 (예: 남쪽 외벽 z=0 의 내면 z=`WT/2`=0.06). `gangs`=1/2/3, `kind`='wet' 시 욕실 방수형(베이지 톤). 빌더가 5 mm 클리어런스로 벽지와 z-fight 회피.
 - **레지스트리 노출** — `buildOutlet()` 가 각 plate 메시를 글로벌 `_outlets[]` 에 `{plate, spec}` 으로 push. minimap.js 의 SHIFT-aim 검출이 이 레지스트리를 참조.
-- **SHIFT-aim 하이라이트** — `_getAimInfo()` 우선순위: 문 → **콘센트** → 가구 → 창문 → 벽 → 방. 콘센트 plate 가 잡히면:
-  - 식별 라벨: `콘센트 N: <label> (<gangs>구[, 방수])` — 주황 배경 (`.t-outlet`)
+- **SHIFT-aim 하이라이트** — `_getAllAimInfo()` 가 적용 모든 카테고리 배열 반환 (배열 순서: 문/콘센트 → 가구 → 창문 → 벽 → 방). 콘센트 plate 가 잡히면:
+  - 식별 라벨: `콘센트 N: <label> (<gangs>구[, 방수])` — 주황 배경 (`.t-outlet`). 다른 카테고리 라벨과 함께 stacked 표시 (§4.20).
   - 시각 하이라이트: `_showOutletHighlight()` 가 `THREE.BoxHelper(plate, 0xffe040)` 노란 외곽선을 띄움 (`depthTest:false`, `renderOrder:998`).
-  - 220 ms hysteresis (§3.6.3) 동일 적용 — 깜빡임 없음.
+  - 다중 라벨 시스템 (§4.20) — 카테고리 전환 없이 동시 표시.
   - 대상 변경 시 이전 BoxHelper geometry/material 모두 `dispose()` (GPU 메모리 누수 0).
 
 ### 3.6.6. 공개 GitHub 미러 + 민감정보 보호 정책
@@ -636,3 +636,25 @@
 - 미래 변경 시 DOORS / FURN 추가는 가능한 합쳐서 한 번에 — 변경 횟수 줄이기.
 
 **교훈**: 자동 인덱싱은 편리하나 시간적 안정성 문제. 사용자 기억 / CL 설명 / 외부 참조 문서가 옛 번호로 고정될 위험. 안정 식별자(@FURN#id) 와 배지(runtime) 의 차이를 문서에 명시해야 함.
+
+### 4.20. SHIFT-aim 다중 라벨 동시 표시 — 단일 + hysteresis 폐기
+
+**문제**: 한 위치 (예: 문 위) 에 여러 카테고리가 적용 (문 + 벽 + 방) 될 때, 단일 라벨 시스템은 우선순위 첫 번째만 표시. 첫 hit 가 mesh 경계에서 jitter 하면 라벨이 깜빡임 (예: 문/벽 사이). 사용자 요청 (2026-05-08): "벌룬 사이를 전환하며 보여주지 말고 현 위치에 표시해야 하는 벌룬을 모두 표시".
+
+**해결**:
+- `_getAimInfo()` (단일 매치 반환) → `_getAllAimInfo()` (배열 반환) 으로 교체. 적용되는 모든 카테고리 (문/콘센트/가구/창문/벽/방) info 객체를 배열에 push.
+- `#aim-label` 을 컨테이너로 변환 (배경/패딩 제거) + 자식 `.aim-item` 요소가 실제 라벨 박스. CSS 의 type 컬러 (`t-room`/`t-door`/etc.) 를 `.aim-item` 으로 옮김.
+- `_updateAimLabel()` 에서 `innerHTML = '<div class="aim-item t-room">...</div><div class="aim-item t-wall">...</div>...'` 로 stacked 렌더.
+- 220 ms hysteresis (`_stabilizedAim`, `AIM_HOLD_MS`) 제거 — 카테고리 전환이 사라져 hold 불필요. 매 프레임 raw 결과 그대로 렌더.
+- 치수 sprite (`_showDimensions`) 는 primary (배열 첫 번째 — 가장 구체적) 매치만 적용. 여러 가구·벽 sprite 가 한 화면에 동시 떠다니는 시각 잡음 회피.
+- 콘센트 outline highlight (`_showOutletHighlight`) 는 매치 배열에서 outlet 항목 검색해 적용.
+
+**우선순위 (배열 순서, 가장 구체 → 가장 일반)**:
+1. 문 — 첫 hit mesh 가 _doors[i].pivot 후손 (mesh 식별)
+2. 콘센트 — 첫 hit 가 _outlets[i].plate 후손 (mesh 식별, 문과 상호 배타)
+3. 가구 — hit 점이 FURNITURE_BBOX 안 (5mm 인셋)
+4. 창문 — hit 점이 WINDOWS_BBOX 안
+5. 벽 — hit 점이 WALLS segment 15cm 이내
+6. 방 — hit 점이 ROOMS 사각형 안 (역순, 가장 작은 박스 우선)
+
+**교훈**: 단일 슬롯 + hysteresis 는 "한 번에 하나만 보여주는 UI" 전제에서 합리적. UI 모델을 "동시 표시" 로 바꾸면 hysteresis 자체가 무의미 — 시간 hold 로 푼 문제는 사실 "정보 손실 vs 깜빡임" 트레이드오프였음. 다중 표시는 정보 손실이 0 이라 깜빡임도 발생하지 않음 (각 카테고리는 자기 조건이 맞으면 보임/안 맞으면 사라짐, 전환 없음).

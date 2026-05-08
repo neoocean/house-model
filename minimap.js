@@ -278,163 +278,127 @@
 
   // 크로스헤어/커서 조준 결과 → {n, label, type} 또는 null
   // ndcX/ndcY: 정규화된 디바이스 좌표 (1인칭은 0,0 / 프리 모드는 마우스 위치)
-  function _getAimInfo(ndcX, ndcY){
+  /* 크로스헤어/커서 조준 결과 → 적용되는 *모든* 카테고리의 info 객체 배열.
+     사용자 요청 (2026-05-08): 한 위치에 여러 벌룬이 동시 적용되면 전환 대신
+     모두 표시. 우선순위 (최다 구체 → 최소 구체) 로 배열에 push:
+       1) 문    — 첫 hit 가 _doors[i].pivot 후손
+       2) 콘센트 — 첫 hit 가 _outlets[i].plate 후손 (문과 상호 배타)
+       3) 가구  — hit 점이 bbox 안 (5mm 인셋)
+       4) 창문  — hit 점이 bbox 안
+       5) 벽    — hit 점이 segment 15cm 이내
+       6) 방    — hit 점이 ROOM 사각형 안 (가장 작은 box 우선)
+     문/콘센트는 첫 hit 기반 (mesh 식별), 나머지는 hit 점 기반 (좌표 검사).
+     반환: [info, ...] (빈 배열 = 매칭 없음).
+  */
+  function _getAllAimInfo(ndcX, ndcY){
     if (ndcX === undefined) ndcX = 0;
     if (ndcY === undefined) ndcY = 0;
     var ray = new THREE.Raycaster();
     ray.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
     ray.far = 25;
     var hits = ray.intersectObjects(scene.children, true);
-    if (hits.length === 0) return null;
+    if (hits.length === 0) return [];
     var hit = hits[0];
     var p = hit.point;
+    var results = [];
 
-    // 1) 문 — 히트 객체가 _doors[i].pivot의 후손인지 확인
-    for (var i = 0; i < _doors.length; i++) {
+    // 1) 문 — 첫 hit 객체가 _doors[i].pivot 의 후손인지
+    var doorIdx = -1;
+    for (var i = 0; i < _doors.length && doorIdx < 0; i++) {
       var pv = _doors[i].pivot;
       var cur = hit.object;
       while (cur) {
-        if (cur === pv) {
-          var num = ROOMS.length + i + 1;
-          return {n:num, type:'door', label:'문 '+num+': '+DOORS[i][2]};
-        }
+        if (cur === pv) { doorIdx = i; break; }
         cur = cur.parent;
       }
     }
+    if (doorIdx >= 0) {
+      var num = ROOMS.length + doorIdx + 1;
+      results.push({n:num, type:'door', label:'문 '+num+': '+DOORS[doorIdx][2]});
+    }
 
-    // 1.5) 콘센트 — 히트 객체가 _outlets[i].plate (또는 그 자식 hole 메시) 인지
-    //      문 다음, 가구/벽보다 먼저 검사 — 콘센트 plate 가 벽 앞 5mm 에 있어
-    //      raycaster 의 첫 hit 가 plate 이면 즉시 매칭. 미매칭 시 가구/벽 검사로 패스.
-    if (typeof _outlets !== 'undefined') {
+    // 2) 콘센트 — 문과 상호 배타 (단일 hit.object 기반).
+    //    문이 매칭됐으면 콘센트 검사 skip — 한 mesh 가 둘 다 일 수 없음.
+    if (doorIdx < 0 && typeof _outlets !== 'undefined') {
       for (var oi = 0; oi < _outlets.length; oi++) {
         var op = _outlets[oi].plate;
         var cur2 = hit.object;
+        var matchedOutlet = false;
         while (cur2) {
-          if (cur2 === op) {
-            var spec = _outlets[oi].spec;
-            var label = '콘센트 ' + (oi+1) + ': ' +
-                        (spec.label || (spec.gangs + '구')) +
-                        ' (' + spec.gangs + '구' +
-                        (spec.kind === 'wet' ? ', 방수' : '') + ')';
-            return { n: oi+1, type:'outlet', label: label, outletPlate: op };
-          }
+          if (cur2 === op) { matchedOutlet = true; break; }
           cur2 = cur2.parent;
+        }
+        if (matchedOutlet) {
+          var spec = _outlets[oi].spec;
+          var lbl = '콘센트 ' + (oi+1) + ': ' +
+                    (spec.label || (spec.gangs + '구')) +
+                    ' (' + spec.gangs + '구' +
+                    (spec.kind === 'wet' ? ', 방수' : '') + ')';
+          results.push({ n: oi+1, type:'outlet', label: lbl, outletPlate: op });
+          break;
         }
       }
     }
 
-    // 2) 가구 — bbox 안에 hit 점이 들어가는지 (5mm xz 인셋, y는 인셋 없음)
-    //    bbox 6요소면 y 범위도 체크 (벽등 상/하 구분용)
-    //    전원 계획 모드: 숨겨진 가구는 라벨 표시 금지 (window._ppVisibleFurnIdxs 만 통과).
+    // 3) 가구 — hit 점이 bbox 안. PP 모드 시 _ppVisibleFurnIdxs 만 통과.
     var ins = 0.005;
-    var matched = -1, bestDist = Infinity;
+    var furnMatched = -1, bestDist = Infinity;
     var ppmVisIdxs = (window.powerPlanMode && window._ppVisibleFurnIdxs) ? window._ppVisibleFurnIdxs : null;
-    for (var i = 0; i < FURNITURE_BBOX.length; i++) {
-      if (ppmVisIdxs && !ppmVisIdxs.has(i)) continue;
-      var b = FURNITURE_BBOX[i];
+    for (var fi = 0; fi < FURNITURE_BBOX.length; fi++) {
+      if (ppmVisIdxs && !ppmVisIdxs.has(fi)) continue;
+      var b = FURNITURE_BBOX[fi];
       if (p.x < b[0]+ins || p.x > b[2]-ins) continue;
       if (p.z < b[1]+ins || p.z > b[3]-ins) continue;
       if (b.length >= 6 && (p.y < b[4] || p.y > b[5])) continue;
-      // 다중 매치 시 중심에서 가장 가까운 가구 우선
-      var d = Math.hypot(p.x - FURNITURE[i][0], p.z - FURNITURE[i][1]);
-      if (d < bestDist) { bestDist = d; matched = i; }
+      var d = Math.hypot(p.x - FURNITURE[fi][0], p.z - FURNITURE[fi][1]);
+      if (d < bestDist) { bestDist = d; furnMatched = fi; }
     }
-    if (matched >= 0) {
-      var num = ROOMS.length + DOORS.length + matched + 1;
-      return {n:num, type:'furn', label:'가구 '+num+': '+FURNITURE[matched][2]};
+    if (furnMatched >= 0) {
+      var num2 = ROOMS.length + DOORS.length + furnMatched + 1;
+      results.push({n:num2, type:'furn', label:'가구 '+num2+': '+FURNITURE[furnMatched][2]});
     }
 
-    // 3) 창문 — bbox 안에 hit 점 (벽보다 우선, 사용자가 유리를 보고 있을 가능성)
-    for (var i = 0; i < WINDOWS_BBOX.length; i++) {
-      var b = WINDOWS_BBOX[i];
-      if (p.x >= b[0] && p.x <= b[2] && p.z >= b[1] && p.z <= b[3]) {
-        var num = ROOMS.length + DOORS.length + FURNITURE.length + WALLS.length + i + 1;
-        return {n:num, type:'win', label:'창문 '+num+': '+WINDOWS[i][2]};
+    // 4) 창문 — hit 점이 bbox 안
+    for (var wi2 = 0; wi2 < WINDOWS_BBOX.length; wi2++) {
+      var bw = WINDOWS_BBOX[wi2];
+      if (p.x >= bw[0] && p.x <= bw[2] && p.z >= bw[1] && p.z <= bw[3]) {
+        var num3 = ROOMS.length + DOORS.length + FURNITURE.length + WALLS.length + wi2 + 1;
+        results.push({n:num3, type:'win', label:'창문 '+num3+': '+WINDOWS[wi2][2]});
+        break;
       }
     }
 
-    // 4) 벽 — 가장 가까운 세그먼트 (15cm 이내)
+    // 5) 벽 — 가장 가까운 segment 15cm 이내
     var minWD = Infinity, wIdx = -1;
-    for (var i = 0; i < WALLS.length; i++) {
-      var w = WALLS[i];
-      var d = _ptToSeg(p.x, p.z, w[0], w[1], w[2], w[3]);
-      if (d < minWD) { minWD = d; wIdx = i; }
+    for (var wj = 0; wj < WALLS.length; wj++) {
+      var w = WALLS[wj];
+      var dw = _ptToSeg(p.x, p.z, w[0], w[1], w[2], w[3]);
+      if (dw < minWD) { minWD = dw; wIdx = wj; }
     }
     if (minWD < 0.15 && wIdx >= 0) {
-      var num = ROOMS.length + DOORS.length + FURNITURE.length + wIdx + 1;
-      return {n:num, type:'wall', label:'벽 '+num};
+      var num4 = ROOMS.length + DOORS.length + FURNITURE.length + wIdx + 1;
+      results.push({n:num4, type:'wall', label:'벽 '+num4});
     }
 
-    // 4) 방 — hit 점이 ROOM 사각형 안에 들어가는지
-    //    PD/chase/기둥 등 내부 박스는 배열 후반에 위치 → 역순 순회로 가장 구체적인(작은) 박스 우선.
-    //    이렇게 해야 미니맵 배지(예: chase 13)와 1인칭 조준 라벨이 일치.
-    for (var i = ROOMS.length - 1; i >= 0; i--) {
-      var r = ROOMS[i];
+    // 6) 방 — hit 점이 ROOM 사각형 안. 역순 (가장 작은 box, 즉 PD/chase/기둥 우선).
+    for (var ri = ROOMS.length - 1; ri >= 0; ri--) {
+      var r = ROOMS[ri];
       if (p.x >= r[0] && p.x <= r[2] && p.z >= r[1] && p.z <= r[3]) {
-        var num = i + 1;
-        return {n:num, type:'room', label:'방 '+num + (r[5] ? ': '+r[5] : '')};
+        var num5 = ri + 1;
+        results.push({n:num5, type:'room', label:'방 '+num5 + (r[5] ? ': '+r[5] : '')});
+        break;
       }
     }
-    return null;
+    return results;
   }
 
-  /* 조준 안정화 (hysteresis)
-     크로스헤어가 두 객체(가구↔방, 가구↔문 등) 경계에 있을 때 raycaster
-     의 first-hit 가 1px 단위로 바뀌면서 라벨이 깜빡이는 현상을 방지.
-
-     원리:
-       - 첫 조준 시점은 즉시 잡음 (0ms 대기) → 반응성 유지.
-       - 이미 어떤 대상에 머물러 있는 동안 다른 대상이 감지되면, 새 대상이
-         AIM_HOLD_MS 동안 연속 유지될 때만 전환. 그 사이 다시 원래 대상이
-         보이면 카운트 리셋 → 깜빡이는 후보는 절대 채택되지 않음.
-       - 빈 공간(rawId=null) 검출 시에도 동일 hold 적용 → 가구 가장자리에서
-         순간적으로 빈공간 ↔ 가구 깜빡임 흡수.
-       - SHIFT 해제 시 상태 리셋 → 재진입 시 즉시 첫 조준 채택. */
-  var AIM_HOLD_MS = 220;
-  var _aimStable = { id:null, target:null, candidate:null, candidateSince:0 };
-  function _resetAimStable(){
-    _aimStable.id = null;
-    _aimStable.target = null;
-    _aimStable.candidate = null;
-  }
-  function _stabilizedAim(rawInfo){
-    var now = performance.now();
-    var rawId = rawInfo ? (rawInfo.type + '-' + rawInfo.n) : null;
-    var curId = _aimStable.id;
-
-    // 1) 현재 대상과 같음 → 후보 카운트 리셋, 그대로 유지
-    if (rawId === curId) {
-      _aimStable.candidate = null;
-      _aimStable.target = rawInfo || _aimStable.target;
-      return _aimStable.target;
-    }
-
-    // 2) 첫 조준 (현재 비어 있음, 새로 잡힘) → 즉시 채택
-    if (curId === null && rawId !== null) {
-      _aimStable.id = rawId;
-      _aimStable.target = rawInfo;
-      _aimStable.candidate = null;
-      return rawInfo;
-    }
-
-    // 3) 후보가 바뀌었거나 처음 보임 → 카운트 시작, 기존 대상 유지
-    if (_aimStable.candidate !== rawId) {
-      _aimStable.candidate = rawId;
-      _aimStable.candidateSince = now;
-      return _aimStable.target;
-    }
-
-    // 4) 같은 후보가 hold 시간 이상 지속됨 → 전환 확정
-    if (now - _aimStable.candidateSince >= AIM_HOLD_MS) {
-      _aimStable.id = rawId;
-      _aimStable.target = rawInfo;
-      _aimStable.candidate = null;
-      return rawInfo;
-    }
-
-    // 5) 아직 hold 안 채워짐 → 기존 대상 유지
-    return _aimStable.target;
-  }
+  /* 조준 안정화 (hysteresis) — 사용자 요청 (2026-05-08) 으로 제거됨.
+     이전: 단일 라벨 시스템에서 두 카테고리 사이 깜빡임 방지용 220 ms hold.
+     현재: 여러 카테고리가 동시 적용되면 모두 표시 (multi-label) — 전환
+     자체가 없으므로 hysteresis 불필요. 매 프레임 _getAllAimInfo() 결과
+     그대로 렌더. (경계 상에서 일부 카테고리 on/off 깜빡임은 있을 수
+     있으나, 사용자 요청 기조 — '전환 대신 동시 표시' — 우선.)
+     필요 시 per-type 짧은 hold 추가 가능. */
 
   /* 콘센트 하이라이트 (사용자 요청) — SHIFT-aim 으로 outlet 잡힐 때 plate 둘레에
      노란 wireframe BoxHelper 를 띄워 시각 강조. depthTest:false 로 어디서나 보임.
@@ -465,66 +429,80 @@
   var PP_AIM_TYPES_NO_SHIFT   = new Set(['outlet']);
   var PP_AIM_TYPES_WITH_SHIFT = new Set(['outlet', 'wall']);
 
-  // 라벨 갱신 — 매 프레임 drawMinimap에서 호출
+  // HTML escape — 라벨 텍스트의 <, >, & 문자를 안전하게 처리.
+  function _esc(s){
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  // 라벨 갱신 — 매 프레임 drawMinimap에서 호출. 사용자 요청 (2026-05-08):
+  // 한 위치에 여러 카테고리가 적용되면 모두 표시 (.aim-item 자식으로 stack).
   // 1인칭: 화면 중앙(크로스헤어, NDC=0,0) / 프리: 마우스 커서 위치를 NDC로 변환
   // 전원 계획 모드 (window.powerPlanMode): SHIFT 없이도 콘센트 hit 시 라벨 + 높이 표시.
   function _updateAimLabel(){
     var ppm = !!window.powerPlanMode;
     if (!_shiftHeld && !ppm) {
-      if (aimLabel.style.display !== 'none') aimLabel.style.display = 'none';
+      if (aimLabel.style.display !== 'none') {
+        aimLabel.style.display = 'none';
+        aimLabel.innerHTML = '';
+      }
       _showDimensions(null);
       _showOutletHighlight(null);
-      _resetAimStable();
       return;
     }
-    var raw, posX, posY;
+    var matches, posX, posY;
     if (freeMode) {
       var rect = renderer.domElement.getBoundingClientRect();
       var ndcX =  ((_mouseX - rect.left) / rect.width)  * 2 - 1;
       var ndcY = -((_mouseY - rect.top)  / rect.height) * 2 + 1;
-      raw = _getAimInfo(ndcX, ndcY);
+      matches = _getAllAimInfo(ndcX, ndcY);
       posX = _mouseX + 'px';
       posY = _mouseY + 'px';
     } else {
-      raw = _getAimInfo(0, 0);
+      matches = _getAllAimInfo(0, 0);
       posX = '50%';
       posY = '50%';
     }
-    // 전원 계획 모드: 허용 type set 기반 분기 — 새 카테고리 추가 시 set 만 갱신.
+    // 전원 계획 모드: 허용 type set 기반 필터 — 새 카테고리 추가 시 set 만 갱신.
     //  - SHIFT 미누름: 콘센트만 반응
     //  - SHIFT 누름:   콘센트 + 벽 (사용자 요청)
     //  그 외 객체(방·문·창·가구) 는 PP 모드에서 항상 무시.
     if (ppm) {
       var ppAllowed = _shiftHeld ? PP_AIM_TYPES_WITH_SHIFT : PP_AIM_TYPES_NO_SHIFT;
-      if (!raw || !ppAllowed.has(raw.type)) {
-        if (aimLabel.style.display !== 'none') aimLabel.style.display = 'none';
-        _showDimensions(null);
-        _showOutletHighlight(null);
-        _resetAimStable();
-        return;
-      }
+      matches = matches.filter(function(m){ return ppAllowed.has(m.type); });
     }
-    var info = _stabilizedAim(raw);   // 200ms hysteresis 적용
-    if (info) {
-      var labelText = info.label;
-      // 전원 계획 모드 + 콘센트: 높이(cm) 추가 표시 — OUTLETS[i].y * 100
-      if (ppm && info.type === 'outlet' && typeof _outlets !== 'undefined') {
-        var spec = _outlets[info.n - 1].spec;
-        labelText += ' • 높이 ' + Math.round(spec.y * 100) + ' cm';
-      }
-      aimLabel.textContent = labelText;
-      aimLabel.className = 't-' + info.type;
-      aimLabel.style.left = posX;
-      aimLabel.style.top  = posY;
-      aimLabel.style.display = 'block';
-      // PP 모드에서는 dim sprite 생략 (콘센트는 dim 정보 없음). 일반 모드는 SHIFT 시 표시.
-      _showDimensions((_shiftHeld && !ppm) ? info : null);
-      _showOutletHighlight(info.type === 'outlet' ? info.outletPlate : null);
-    } else {
+    if (matches.length === 0) {
       aimLabel.style.display = 'none';
+      aimLabel.innerHTML = '';
       _showDimensions(null);
       _showOutletHighlight(null);
+      return;
     }
+    // 모든 매치를 stacked .aim-item 으로 렌더 — 컨테이너 #aim-label 의 innerHTML.
+    var html = '';
+    var outletMatch = null;
+    for (var i = 0; i < matches.length; i++) {
+      var m = matches[i];
+      var labelText = m.label;
+      // 전원 계획 모드 + 콘센트: 높이(cm) 추가 표시.
+      if (ppm && m.type === 'outlet' && typeof _outlets !== 'undefined') {
+        var spec = _outlets[m.n - 1].spec;
+        labelText += ' • 높이 ' + Math.round(spec.y * 100) + ' cm';
+      }
+      html += '<div class="aim-item t-' + m.type + '">' + _esc(labelText) + '</div>';
+      if (m.type === 'outlet') outletMatch = m;
+    }
+    aimLabel.innerHTML = html;
+    aimLabel.className = '';   // 컨테이너에는 t-XXX 클래스 없음
+    aimLabel.style.left = posX;
+    aimLabel.style.top  = posY;
+    aimLabel.style.display = 'block';
+
+    // 치수 sprite — primary (가장 구체적인) 매치 1 개만 적용. PP 모드에서는 생략.
+    var primary = matches[0];
+    _showDimensions((_shiftHeld && !ppm) ? primary : null);
+
+    // 콘센트 outline highlight — 콘센트 매치 있으면 plate 강조.
+    _showOutletHighlight(outletMatch ? outletMatch.outletPlate : null);
   }
 
   /* ─────────────────────────────────────────────────────────────────
