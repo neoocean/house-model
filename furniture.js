@@ -33,7 +33,7 @@ function defineFurniture(spec, build) {
 const FURN_META = {
   47: { id:47, name:'드럼세탁기',         room:'발코니',     pos:{cx:0.50,  cz:6.09 }, size:{W:0.90, D:0.90, H:1.275}, bbox:[0.05,  5.64,  0.95,  6.54],            source:'@ESTIMATE 실제 치수 ×1.5' },
   48: { id:48, name:'침실2 침대',         room:'침실 2',     pos:{cx:3.30,  cz:5.52 }, size:{W:1.65, D:2.05, H:0.60 }, bbox:[2.475, 4.49,  4.125, 6.54],            source:'@ESTIMATE 퀸 사이즈, 헤드보드 0.55' },
-  49: { id:49, name:'침실1 책상',         room:'침실 1',     pos:{cx:10.04, cz:1.35 }, size:{W:0.80, D:1.80, H:0.74 }, bbox:[9.64,  0.45,  10.44, 2.25],            source:'@ESTIMATE 표준 책상' },
+  49: { id:49, name:'서재 책상',         room:'서재',     pos:{cx:10.04, cz:1.35 }, size:{W:0.80, D:1.80, H:0.74 }, bbox:[9.64,  0.45,  10.44, 2.25],            source:'@ESTIMATE 표준 책상' },
   50: { id:50, name:'현관 신발장',        room:'연결통로 2', pos:{cx:9.39,  cz:3.955}, size:{W:0.98, D:0.37, H:2.40 }, bbox:[8.9,   3.77,  9.88,  4.14],            source:'@USER 폭 1.18→0.98 — 좌측 20cm 수축, 우측 (벽 96 쪽, 기둥 @ROOM#15 부착) 유지' },
   51: { id:51, name:'주방 하부장(앞)',    room:'주방·식당',  pos:{cx:6.54,  cz:0.36 }, size:{W:2.40, D:0.60, H:1.00 }, bbox:[5.34,  0.06,  7.74,  0.66, 0,    1.0 ] },
   52: { id:52, name:'주방 하부장(우)',    room:'주방·식당',  pos:{cx:7.44,  cz:1.65 }, size:{W:0.60, D:1.98, H:1.00 }, bbox:[7.14,  0.66,  7.74,  2.64, 0,    1.0 ] },
@@ -48,10 +48,10 @@ const FURN_META = {
   61: { id:61, name:'욕실 벽등(하)',      room:'욕실',       pos:{cx:5.545, cz:6.50 }, size:{W:0.29, D:0.15, H:0.26 }, bbox:[5.40,  6.40,  5.69,  6.55, 1.69, 1.95] },
   62: { id:62, name:'주방 상부장(앞)',    room:'주방·식당',  pos:{cx:6.54,  cz:0.405}, size:{W:2.40, D:0.69, H:0.90 }, bbox:[5.34,  0.06,  7.74,  0.75, 1.5,  2.4 ], source:'@USER 깊이 0.32→0.69 — 배관 기둥(@ROOM#14, z=0~0.75) 앞면 정렬' },
   63: { id:63, name:'실내 자전거',        room:'거실확장',   pos:{cx:0.55,  cz:1.80 }, size:{W:0.70, D:1.50, H:1.60 }, bbox:[0.20,  1.05,  0.90,  2.55, 0,    1.60], source:'@ESTIMATE Tacx Neo Bike Smart 스타일' },
-  64: { id:64, name:'침실1 책꽂이 1',       room:'침실 1',     pos:{cx:9.84,  cz:0.185}, size:{W:1.20, D:0.25, H:1.85 }, bbox:[9.24,  0.06,  10.44, 0.31, 0,    1.85] },
-  65: { id:65, name:'침실1 책꽂이 2',       room:'침실 1',     pos:{cx:8.64,  cz:0.185}, size:{W:1.20, D:0.25, H:1.85 }, bbox:[8.04,  0.06,  9.24,  0.31, 0,    1.85] },
-  66: { id:66, name:'침실1 책꽂이 3',       room:'침실 1',     pos:{cx:9.64,  cz:2.515}, size:{W:1.60, D:0.25, H:1.85 }, bbox:[8.84,  2.39,  10.44, 2.64, 0,    1.85] },
-  67: { id:67, name:'벽걸이 로드 자전거',   room:'침실 1',     pos:{cx:8.06,  cz:1.40 }, size:{W:0.18, D:1.70, H:0.95 }, bbox:[8.00,  0.50,  8.18,  2.20, 0.55, 1.50], source:'@ESTIMATE S-Works 스타일' },
+  64: { id:64, name:'서재 책꽂이 1',       room:'서재',     pos:{cx:9.84,  cz:0.185}, size:{W:1.20, D:0.25, H:1.85 }, bbox:[9.24,  0.06,  10.44, 0.31, 0,    1.85] },
+  65: { id:65, name:'서재 책꽂이 2',       room:'서재',     pos:{cx:8.64,  cz:0.185}, size:{W:1.20, D:0.25, H:1.85 }, bbox:[8.04,  0.06,  9.24,  0.31, 0,    1.85] },
+  66: { id:66, name:'서재 책꽂이 3',       room:'서재',     pos:{cx:9.64,  cz:2.515}, size:{W:1.60, D:0.25, H:1.85 }, bbox:[8.84,  2.39,  10.44, 2.64, 0,    1.85] },
+  67: { id:67, name:'벽걸이 로드 자전거',   room:'서재',     pos:{cx:8.06,  cz:1.40 }, size:{W:0.18, D:1.70, H:0.95 }, bbox:[8.00,  0.50,  8.18,  2.20, 0.55, 1.50], source:'@ESTIMATE S-Works 스타일' },
   68: { id:68, name:'창고 붙박이장',        room:'창고',       pos:{cx:9.08,  cz:6.24 }, size:{W:2.40, D:0.60, H:2.40 }, bbox:[7.88,  5.94,  10.28, 6.54, 0,    2.40] },
   69: { id:69, name:'창고 붙박이장 2',      room:'창고',       pos:{cx:9.84,  cz:4.56 }, size:{W:1.20, D:0.60, H:2.40 }, bbox:[9.24,  4.26,  10.44, 4.86, 0,    2.40] },
   70: { id:70, name:'거실 소파',            room:'거실',       pos:{cx:1.985, cz:1.16 }, size:{W:0.85, D:2.20, H:0.95 }, bbox:[1.56,  0.06,  2.41,  2.26, 0,    0.95] },
@@ -629,11 +629,11 @@ defineFurniture({
   box(new THREE.BoxGeometry(fo.W, fo.H, fo.D), woodMat, cx, FT + fo.H/2, foZ);
 });
 
-// @FURN#49 침실1 책상
-// ── 침실1 책상 (오른쪽 벽 x=10.5 중앙, 가로 80cm × 세로 180cm) ──
-// 침실1: x=xBR~xHall, z=zT~zM1  /  오른쪽 벽 내면: x = xHall - WT/2 = 10.44
+// @FURN#49 서재 책상
+// ── 서재 책상 (오른쪽 벽 x=10.5 중앙, 가로 80cm × 세로 180cm) ──
+// 서재: x=xBR~xHall, z=zT~zM1  /  오른쪽 벽 내면: x = xHall - WT/2 = 10.44
 defineFurniture({
-  id: 49, name: '침실1 책상', room: '침실 1',
+  id: 49, name: '서재 책상', room: '서재',
   size: {
     dW:    0.80,  // 깊이 (벽에서 방 안쪽, x 방향) @ESTIMATE
     dD:    1.80,  // 길이 (벽을 따라, z 방향) — 1800mm @ESTIMATE
@@ -645,7 +645,7 @@ defineFurniture({
 }, function(spec){
   var s = spec.size;
   var wallX = xHall - WT/2;            // 오른쪽 벽 내면 x ≈ 10.44
-  var cz    = (zT + zM1) / 2;          // 침실1 z 중앙 = 1.35
+  var cz    = (zT + zM1) / 2;          // 서재 z 중앙 = 1.35
   var cx    = wallX - s.dW/2;          // 책상 x 중심 ≈ 10.04
 
   var deskMat = makeLambert(PAL.wood.deskTop);   // PAL.wood.deskTop (밝은 오크)
@@ -668,8 +668,8 @@ defineFurniture({
   });
 });
 
-// @FURN#64..66 침실1 책꽂이 1~3 (3개 인스턴스, 폭 1.20/1.20/1.60m, 5단)
-// ── 침실1 오픈 책꽂이 (벽 59에 등 기댐, 깊이 25cm × 높이 1.80m) ────
+// @FURN#64..66 서재 책꽂이 1~3 (3개 인스턴스, 폭 1.20/1.20/1.60m, 5단)
+// ── 서재 오픈 책꽂이 (벽 59에 등 기댐, 깊이 25cm × 높이 1.80m) ────
 // @FURN#64: 북측 벽(z=0) 우측, 폭 1.20m — 우측면이 벽 74에 기댐 (rightX = xHall-WT/2 = 10.44)
 // @FURN#65: 북측 벽(z=0) 좌측, 폭 1.20m — @FURN#64 좌측에 인접
 // @FURN#66: 남측 벽(z=2.7) 우측, 폭 1.60m — 동측 벽에 우측면 기댐 (북측 2 책꽂이와 z 미러)
@@ -693,7 +693,7 @@ defineFurniture({
   // backZ: 등 기댄 벽 z (기본 WT/2 = 북측 벽), openDir: 개방 방향 (+1 +z, -1 -z),
   // width: 폭 (기본 0.80m)
   function makeBookcase(rightX, seedSalt, backZ, openDir, width){
-    if (backZ === undefined) backZ = WT/2;          // 기본: 침실1 북측 벽
+    if (backZ === undefined) backZ = WT/2;          // 기본: 서재 북측 벽
     if (openDir === undefined) openDir = 1;         // 기본: +z 방향 개방
     if (width === undefined) width = 0.80;          // 기본: 0.80m
 
@@ -748,7 +748,7 @@ defineFurniture({
     placeBooks(shelfYs[3] + 0.014/2,    sxL + 0.04,  5, true);
   }
 
-  // === 북측 벽(z=0) 측 — 침실1 북쪽 벽, 2개 (각 폭 1.20m, 총 2.40m) ===
+  // === 북측 벽(z=0) 측 — 서재 북쪽 벽, 2개 (각 폭 1.20m, 총 2.40m) ===
   // @FURN#64: 우측면이 벽 74에 기댐 (NE 코너), 폭 1.20m
   makeBookcase(xHall - WT/2,         0,  WT/2,        1, 1.20);
   // @FURN#65: @FURN#64 좌측에 인접, 폭 1.20m (남은 벽 면적 끝까지 연속)
@@ -760,11 +760,11 @@ defineFurniture({
 })();
 
 // @FURN#67 벽걸이 로드 자전거
-// ── 침실1 벽걸이 로드 자전거 (벽 76 = 주방·침실1 경계 x=7.8, 침실1 측) ───
+// ── 서재 벽걸이 로드 자전거 (벽 76 = 주방·서재 경계 x=7.8, 서재 측) ───
 // Specialized S-Works Tarmac 스타일 (그린/블랙 그라데이션, 카본 휠).
 // 수평 마운트: 바이크 좌측면이 벽에 붙고, 휠축이 x 방향으로 향함 (정면이 -x 방향).
 (function(){
-  // 위치 — 침실1 측, 벽 내면 x=7.86에서 20cm 떨어져서 매달림 (실제 자전거 거리감)
+  // 위치 — 서재 측, 벽 내면 x=7.86에서 20cm 떨어져서 매달림 (실제 자전거 거리감)
   var bx       = xBR + WT/2 + 0.20;        // 8.06 (바이크 중심 x)
   var hubY     = 0.90;                      // 휠 허브 y 높이 (어깨 정도)
   var zRear    = 0.85;                       // 뒷 휠 z 중심
@@ -1543,7 +1543,7 @@ defineFurniture({
   B(DU-pt,     pt,         L-pt*2,    mInner, xC-pt/2, topY-pt/2,  zC);          // 상판
   B(DU-pt,     pt,         L-pt*2,    mInner, xC-pt/2, UB+pt/2,    zC);          // 하판
   B(DU-pt,     UH-pt*2,    pt,        mUpp,   xC-pt/2, midY,       zS+pt/2);     // 좌측판 (z=0.66, 부엌 앞쪽)
-  B(DU-pt,     UH-pt*2,    pt,        mUpp,   xC-pt/2, midY,       zE-pt/2);     // 우측판 (z=2.64, 침실1 쪽)
+  B(DU-pt,     UH-pt*2,    pt,        mUpp,   xC-pt/2, midY,       zE-pt/2);     // 우측판 (z=2.64, 서재 쪽)
   B(DU-pt*2,   pt,         L-pt*2,    mInner, xC,      midY,       zC);          // 중간 칸막이
 
   /* 2) 플랩 도어 — 2단, 각 단 상단 (z 축) 힌지 */
