@@ -341,7 +341,7 @@
     }
 
     // 3) 가구 — hit 점이 bbox 안. PP/미팅 모드 (window._outletViewActive) 시
-    //    _ppVisibleFurnIdxs 만 통과 (CL 50983: powerPlanMode → _outletViewActive).
+    //    _ppVisibleFurnIdxs 만 통과 (CL 50995: powerPlanMode → _outletViewActive).
     var ins = 0.005;
     var furnMatched = -1, bestDist = Infinity;
     var ppmVisIdxs = (window._outletViewActive && window._ppVisibleFurnIdxs) ? window._ppVisibleFurnIdxs : null;
@@ -439,7 +439,7 @@
   // 한 위치에 여러 카테고리가 적용되면 모두 표시 (.aim-item 자식으로 stack).
   // 1인칭: 화면 중앙(크로스헤어, NDC=0,0) / 프리: 마우스 커서 위치를 NDC로 변환
   // PP/미팅 모드 (window._outletViewActive): SHIFT 없이도 콘센트 hit 시 라벨 + 높이 표시.
-  // (CL 50983: powerPlanMode → _outletViewActive — PP 와 미팅 양 모드 공통 필터.)
+  // (CL 50995: powerPlanMode → _outletViewActive — PP 와 미팅 양 모드 공통 필터.)
   function _updateAimLabel(){
     var ppm = !!window._outletViewActive;
     if (!_shiftHeld && !ppm) {
@@ -994,7 +994,7 @@
     if (!_badgeLayout) _badgeLayout = computeBadgeLayout();
 
     // PP/미팅 모드: 미니맵에는 벽 번호만 표시 (사용자 요청). 그 외 (방·문·가구·창문) 배지 모두 숨김.
-    // (CL 50983: powerPlanMode → _outletViewActive — PP 와 미팅 양 모드 공통.)
+    // (CL 50995: powerPlanMode → _outletViewActive — PP 와 미팅 양 모드 공통.)
     var ppm = !!window._outletViewActive;
     var ppFilter = function(b){ return ppm ? (b.cat === 'wall') : true; };
 

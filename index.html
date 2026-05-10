@@ -2068,7 +2068,7 @@ var drag = false, dragX = 0, dragY = 0;
 var keys = {};
 var eyeHeight = 1.60;              // 1인칭 눈높이 (m, 기본 160cm), Q/E로 ±1cm 조정
 
-// 모바일 감지 — 사용자 요청 (CL 50975+, "터치 이벤트 존재 + 작은 화면").
+// 모바일 감지 — 사용자 요청 (CL 50979, "터치 이벤트 존재 + 작은 화면").
 //   true 일 때: UI(#ui)·미니맵(#minimap, #minimap-legend) 숨김 + 한 손가락 드래그
 //   = WASD 대체 카메라 이동 + 핀치 = 시선 방향 전진/후진. 데스크톱에서는 false 라
 //   기존 동작 100% 보존.
@@ -2312,7 +2312,7 @@ document.addEventListener('mousemove', function(e) {
 });
 
 /* =====================================================================
-   MOBILE TOUCH SUPPORT — 사용자 요청 (CL 50975+)
+   MOBILE TOUCH SUPPORT — 사용자 요청 (CL 50979)
    ----------------------------------------------------------------------
    IS_MOBILE 일 때만 등록. 데스크톱은 영향 없음.
      · 한 손가락 드래그  → _touchInput (가상 조이스틱) 갱신 → animate()
