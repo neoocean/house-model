@@ -727,6 +727,70 @@ HW(mExt, xHall, xR,    zM2, 0, CH/2);        // 복도 남측 (z=4.2, x=10.5~12)
     xL, sillH + glH / 2, (zmid2 + zE) / 2);
 })();
 
+/* =====================================================================
+   발코니 외부 안전 난간 — 사용자 요청 (사진 첨부, 한국 아파트 표준)
+   ----------------------------------------------------------------------
+   좌측 연속창 (x=0 외벽, 거실확장 + 발코니) 외부에 1100mm 표준 발코니
+   난간. 100mm 간격 세로 살, 양 끝 기둥, 상하 가로 레일. 유리 (mWin
+   opacity 0.4) 너머로 거실확장·발코니 안에서 보임.
+
+   배치:
+     · x = -0.10 (외벽 x=0 에서 10cm 바깥, 슬라브 외측 가정)
+     · y = 0.05 ~ 1.10 (바닥 5cm + 한국 표준 1.1m 난간 높이)
+     · z = 0.96 ~ 6.54 (유리 ① + ② 전체 길이, 5.58m, 분리벽 기둥
+       구간 z=3.44~3.56 위에서도 외부에선 연속)
+
+   외부 구조라 FURN bbox 미포함 → PP/미팅 모드 자동 가시 유지.
+   FURN_META 미등록 (badge 시프트 회피).
+===================================================================== */
+(function(){
+  var x       = -0.10;        // 외벽 x=0 에서 10cm 바깥
+  var zStart  = 0.96;         // 유리 ① 시작 (인덴트 이후)
+  var zEnd    = 6.54;         // 유리 ② 끝 (뒤 코너 안쪽)
+  var totalL  = zEnd - zStart;
+  var yBot    = 0.05;         // 하부 레일 중심 y
+  var yTop    = 1.10;         // 상부 레일 중심 y (표준 1.1m)
+  var railThk = 0.04;         // 레일 단면 (40×40mm 정사각)
+  var postW   = 0.05;         // 끝 기둥 단면 (50×50mm)
+  var balW    = 0.018;        // 세로 살 단면 (18×18mm)
+  var balGap  = 0.10;         // 살 중심 간격 (100mm — 한국 안전 규정)
+
+  var railMat = new THREE.MeshPhongMaterial({
+    color:0xc0c4cc, specular:0x707080, shininess:80
+  });
+
+  function rbox(w, h, d, cx, cy, cz){
+    var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), railMat);
+    m.position.set(cx, cy, cz);
+    m.castShadow = true; m.receiveShadow = true;
+    scene.add(m);
+  }
+
+  // 1) 양 끝 기둥
+  var postH  = (yTop - yBot) + railThk;             // 1.05 + 0.04 = 1.09
+  var postYC = (yBot + yTop) / 2;                   // 0.575
+  rbox(postW, postH, postW, x, postYC, zStart + postW/2);
+  rbox(postW, postH, postW, x, postYC, zEnd   - postW/2);
+
+  // 2) 상부 + 하부 가로 레일
+  var railZC = (zStart + zEnd) / 2;
+  rbox(railThk, railThk, totalL, x, yTop, railZC);
+  rbox(railThk, railThk, totalL, x, yBot, railZC);
+
+  // 3) 세로 살 — 기둥 사이 100mm 균등 분포
+  var balYC = (yBot + yTop) / 2;
+  var balH  = (yTop - yBot) - railThk;              // 1.05 - 0.04 = 1.01
+  var inner1 = zStart + postW;                       // 1.01
+  var inner2 = zEnd   - postW;                       // 6.49
+  var innerL = inner2 - inner1;                      // 5.48
+  var nBal   = Math.round(innerL / balGap) - 1;     // 54 (양 끝 기둥과 ~50mm 갭)
+  var actualSp = innerL / (nBal + 1);
+  for (var i = 1; i <= nBal; i++){
+    var bz = inner1 + i * actualSp;
+    rbox(balW, balH, balW, x, balYC, bz);
+  }
+})();
+
 // ── 오른쪽 x=12 : 외벽, 절반 높이 (복도 z=0~4.2 구간만, 단축됨) ──
 VW(mExt, zT, zM2, xR, 0, CH/2);
 
