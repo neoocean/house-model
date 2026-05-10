@@ -651,7 +651,12 @@ const CEILING_LIGHTS = [
   { name:'거실',         x:3.30,  z:1.75, kind:'panel', size:0.60 },
   { name:'주방·식당',    x:6.45,  z:2.40, kind:'panel', size:0.60 },
   { name:'연결통로 2',   x:9.15,  z:3.45, kind:'flush' },
-  { name:'서재',       x:9.15,  z:1.35, kind:'flush' },
+  // 서재 — 사용자 요청 (그림 첨부, 5/8 미팅 ③ 일부): 기존 중앙 1개 → 페어 2개.
+  // 벽 98 (서재 동측 외벽, x=10.5) 을 북쪽에 두고 그린 ceiling plan. 페어는
+  // room z 축 따라 80cm 간격 (남측 z=0.95, 북측 z=1.75), x=room center 9.15.
+  // size 0.20 (작은 다운라이트). 1번 미팅 모드에서도 가시 (FURN bbox 미포함).
+  { name:'서재 ①',     x:9.15,  z:0.95, kind:'flush', size:0.20 },
+  { name:'서재 ②',     x:9.15,  z:1.75, kind:'flush', size:0.20 },
   { name:'복도',         x:11.25, z:2.10, kind:'flush' },
   { name:'침실 2',       x:3.30,  z:5.05, kind:'flush' },
   { name:'욕실',         x:6.45,  z:5.70, kind:'wet'   },

@@ -927,3 +927,45 @@ function setPowerPlanMode(on){
 7. (보너스) 인터폰 — 본 CL
 
 **교훈**: 벽 부착 컨트롤 패널은 외관상 furniture 가 아니라 architectural — FURN_META 우회 + meeting-only 패턴 결합으로 깔끔. 사용자가 wall N 으로 참조하는 환경에선 furniture 추가 시 시프트 영향 평가 필요.
+
+### 4.30. 서재 천장 등 — 중앙 1개 → 페어 2개 (5/8 미팅 ③ 일부, 본 CL)
+
+**요청** (그림 첨부): "서재 천장의 등을 제거하세요. ... 작은 동그라미 두 개가 원형 조명 두 개를 뜻합니다. 천장에 이 조명들을 붙여주세요. ... 탑뷰에서도 보여야 하고 1인칭일때도 보여야 합니다. 1번 모드에서도 사라지지 않고 보여야 합니다."
+
+**그림 해석**:
+- "벽 98 을 북쪽에 두고" = `WALLS[18] = [xHall, zT, xHall, zM1]` (서재 동측 외벽, x=10.5) 을 그림 상단에. 즉 90° CCW 회전 view.
+- "원형 조명 두 개" = 2개의 round 다운라이트 (small flush type).
+
+**배치**:
+- 기존 `{ name:'서재', x:9.15, z:1.35, kind:'flush' }` 제거.
+- 신규 페어 (`CEILING_LIGHTS` 배열):
+  - `{ name:'서재 ①', x:9.15, z:0.95, kind:'flush', size:0.20 }`
+  - `{ name:'서재 ②', x:9.15, z:1.75, kind:'flush', size:0.20 }`
+- 둘 다 room z 축 따라 80cm 간격, x=9.15 (room center). size 0.20m (작은 다운라이트).
+
+**가시성 (사용자 명시 요건 자동 충족)**:
+- **탑뷰** (free 카메라 top-down): 천장 (`mCeil`) 은 `freeMode` 일 때 hidden — 천장 등 (y=CH-0.0125≈2.39) 이 위에서 잘 보임 ✓
+- **1인칭**: 눈높이 1.6m 에서 위쪽 천장 등 자연 보임 ✓
+- **1번 미팅 모드**: `_initPowerPlanCache` 의 hide 분류는 `FURN_META` bbox 안 메시만 대상. 천장 등 위치 (x=9.15, z=0.95/1.75, y=~2.39) 는 어떤 FURN bbox 도 포함 안 함 → 자동 가시 ✓ (특별 처리 불필요).
+
+**왜 별도 처리 없이 자동 가시?**: `_initPowerPlanCache` 의 traverse:
+```
+for (var i = 0; i < bboxes.length; i++){
+  if (cx < b.x1 - XZ_SLACK || cx > b.x2 + XZ_SLACK) continue;
+  if (cz < b.z1 - XZ_SLACK || cz > b.z2 + XZ_SLACK) continue;
+  ...
+  _ppFurnsToHide.push(obj); break;
+}
+```
+서재 가구 (책상 @FURN#49, 책꽂이 @FURN#64/65/66, 자전거 @FURN#67) 의 bbox 어느 것도 (x=9.15, z=0.95/1.75) 를 포함 안 함. 따라서 ceiling 등 메시는 분류 안 됨 → `_ppFurnsToHide` 미등록 → 가시 유지.
+
+**5/8 미팅 6 카테고리 진행도 (본 CL 후)**:
+1. ✅ 전원 콘센트 (CL 50995)
+2. ⬜ (전원 외) 콘센트
+3. ◐ 조명 — 스위치 (CL 51057) + 서재 페어 (본 CL). 다른 방 조명은 미진행.
+4. ✅ 난방 분배기 (CL 51028)
+5. ✅ 난방 컨트롤러 (CL 51057)
+6. ✅ 중문 디딤판 (CL 50963)
++ 보너스: 인터폰 (CL 51057)
+
+**교훈**: 천장 등은 (a) 가구가 아니고 (b) FURN bbox 와 무관한 위치라 PP/미팅 모드 hide 정책이 자동 우회. meeting-only 패턴 (`userData.meetingOnly`) 도 불필요. 사용자가 "1번 모드에서도 보여야" 강조한 것은 안전 확인 — 실제론 default 동작.
