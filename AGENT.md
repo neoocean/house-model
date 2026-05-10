@@ -17,7 +17,7 @@
 | `outlets.js` (~200 줄) | `OUTLETS` 26 항목 + `_outlets[]` 레지스트리 + `buildOutlet` IIFE (한국 220V Type-F, 2구 세로) + `_outletStats()` 콘솔 헬퍼 |
 | `powerplan.js` (~200 줄) | 전원 계획 모드 (`2` 키 토글, 이전 `1`): `setPowerPlanMode` / `_initPowerPlanCache` / `_initOutletOutlines` / `_buildPpVisIdxs` / `_applyOutletView` (CL 50995 추출, 미팅 모드 공유) |
 | `meetingmode.js` (~70 줄) | 5/8 미팅 결정사항 모드 (`1` 키 토글, CL 50995) — `setMeetingMode`. 첫 시각화 = PP 모드와 동일. PP 모드와 mutually exclusive. |
-| `furniture.js` (~2.1 K 줄) | `FURN_REGISTRY` + `FURN_META` (27 개 메타) + `FURN_CATALOG` (13 종 템플릿) + 가구 IIFE 27 개 |
+| `furniture.js` (~2.2 K 줄) | `FURN_REGISTRY` + `FURN_META` (28 개 메타) + `FURN_CATALOG` (13 종 템플릿) + 가구 IIFE 28 개 (난방수 분배기 @FURN#74 추가, 본 CL) |
 | `minimap.js` (~1.4 K 줄) | 미니맵 IIFE — `ROOMS`/`WALLS`/`DOORS`/`FURNITURE`/`WINDOWS` 데이터 + 정적 캔버스 캐시 + 동적 배지 (cat 필드, PP 모드 시 wall 만 + hover-spread 콜아웃) + SHIFT-aim 식별/치수 라벨 (PP 모드: 콘센트+벽 한정) + init-time 어셔션 (§M/§P/§U/§CC) + 콘솔 헬퍼 (`_inspect`/`_gap`/`_listRoom`) |
 | `vendor/three.min.js` | Three.js 0.150.1 UMD (벤더링됨) |
 | `POWERPLAN.md` | 전원 콘센트 배치 인덱스 (방별 표 + 표준 마운트 높이 + PP 모드 동작) |
@@ -43,7 +43,7 @@
 모든 객체는 글로벌 `@TYPE#NN` 번호로 참조한다 (배지 = ROOMS+DOORS+FURN+i 누적합):
 - `@ROOM#1..15` (방 11 + PD/chase/기둥 4)
 - `@DOOR#16..51` (36) — 회전형 31 + 신발장 양문 2 + 영림 3연동 중문 패널 3
-- `@FURN#47..73` (27, FURN_META id 기준 — 안정. 현재 미니맵 배지는 가구 52..78)
+- `@FURN#47..74` (28, FURN_META id 기준 — 안정. 현재 미니맵 배지는 가구 52..79; @FURN#74 난방수 분배기, 5/8 미팅, 본 CL)
 - 벽 (43) — 현재 미니맵 배지 79..121
 - 창문 (5) — 현재 미니맵 배지 122..126
 

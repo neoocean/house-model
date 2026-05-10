@@ -18,7 +18,7 @@ function defineFurniture(spec, build) {
 /* =====================================================================
    FURN_META — 가구 메타데이터 단일 카탈로그 (항목 U)
    ----------------------------------------------------------------------
-   28 개 가구 모두에 대한 {id, name, room, pos, size, bbox, source} 정보.
+   28 개 가구 (47..74) 모두에 대한 {id, name, room, pos, size, bbox, source} 정보.
    K 마이그레이션 여부와 무관하게 LLM·콘솔이 단일 객체에서 전체 가구를 조회 가능.
 
    사용 예:
@@ -26,7 +26,7 @@ function defineFurniture(spec, build) {
      Object.values(FURN_META).filter(m => m.room === '욕실')    // 욕실 가구 목록
      window._inspect(48)                                        // (Z 항목 헬퍼)
 
-   키: 글로벌 @FURN# 번호 (47..73). 미니맵 FURNITURE[] 인덱스 = id - 47.
+   키: 글로벌 @FURN# 번호 (47..74). 미니맵 FURNITURE[] 인덱스 = id - 47.
    size.W / size.D 는 bbox 의 xz 범위와 일치, size.H 는 bbox 6-요소(yMin, yMax)
    에서 추출하거나 K 마이그레이션 spec / 코드 inspection 으로 채움.
 ===================================================================== */
@@ -58,6 +58,7 @@ const FURN_META = {
   71: { id:71, name:'거실 다이닝 테이블',   room:'거실',       pos:{cx:3.60,  cz:0.76 }, size:{W:1.60, D:0.80, H:0.73 }, bbox:[2.80,  0.36,  4.40,  1.16, 0,    0.73] },
   72: { id:72, name:'거실 벤치',            room:'거실',       pos:{cx:3.60,  cz:0.21 }, size:{W:1.40, D:0.30, H:0.42 }, bbox:[2.90,  0.06,  4.30,  0.36, 0,    0.42] },
   73: { id:73, name:'주방 플랩 상부장(우)', room:'주방·식당',  pos:{cx:7.59,  cz:1.65 }, size:{W:0.30, D:1.20, H:0.60 }, bbox:[7.44,  1.05,  7.74,  2.25, 1.50, 2.10], source:'@USER 벽 90 상단 2단 플랩 도어 (반투명, 축소판, 천장에서 30cm 띄움)' },
+  74: { id:74, name:'난방수 분배기',         room:'주방·식당',  pos:{cx:7.665, cz:0.36 }, size:{W:0.50, D:0.15, H:0.40 }, bbox:[7.59,  0.11,  7.74,  0.61, 0.10, 0.50], source:'@USER 5/8 미팅 결정 — 벽 94 (주방 우벽 x=7.8) 정면 아래쪽 바닥, 주방 하부장(우) 남측 빈 공간 (z=0.06~0.66)' },
 };
 
 /* =====================================================================
@@ -2143,3 +2144,85 @@ defineFurniture({
   makeLamp(1.842);  // 41번 — 맨 아래쪽이 거울장 상하 중심선(y=1.75)과 일치
 })();
 
+
+/* =====================================================================
+   @FURN#74 난방수 분배기 (Heating Water Distributor / Manifold)
+   ----------------------------------------------------------------------
+   사용자 요청 (5/8 현장 미팅 결정사항 — "난방 분배기 교체"):
+     "벽 94 를 정면으로 바라볼 때 아래쪽 바닥에 설치"
+   = 주방 우벽 (x=7.8, z=0~2.7) 의 남측 (z 작은 쪽) 빈 공간 (주방 하부장
+     @FURN#52 의 z=0.66 이전 60cm 구간) 의 floor-level 설치.
+
+   배치:
+     · x: 7.59 ~ 7.74 (벽 내면 x=7.74 에 부착, 깊이 15 cm 돌출)
+     · z: 0.11 ~ 0.61 (폭 50 cm, 주방 하부장 @FURN#52 와 5 cm 간격)
+     · y: 0.10 ~ 0.50 (바닥에서 10 cm 위, 높이 40 cm — 사진 참고)
+
+   구조 (사진 참고 단순화):
+     · 본체 manifold (BoxGeometry, 황동 톤)
+     · 상단 밸브 2 개 (cylinder + 빨간 cap — 차단 핸들)
+     · 하단 PEX 출력관 6 개 (얇은 노란 cylinder, 바닥 향 5 cm 노출)
+     · 좌·우 메인 인입관 2 개 (얇은 회색 cylinder, 벽 향)
+
+   향후 5/8 미팅 모드 (키 1) 로 본 항목 시각화 강조 시: 메시 식별을 위해
+   userData.kind = 'heatingDistributor' 부착 — meetingmode.js 의
+   별도 보존 set 에서 참조 가능.
+===================================================================== */
+(function(){
+  var meta = FURN_META[74];
+  var cx = meta.pos.cx;
+  var cz = meta.pos.cz;
+  var W  = meta.size.W;          // z 방향 폭 0.50
+  var D  = meta.size.D;          // x 방향 깊이 0.15
+  var H  = meta.size.H;          // y 방향 높이 0.40
+  var yMin = meta.bbox[4];       // 0.10 (floor + 10 cm)
+  var yMax = meta.bbox[5];       // 0.50
+  var yC = (yMin + yMax) / 2;
+
+  var brass     = new THREE.MeshPhongMaterial({color:0xb89c5e, specular:0x806030, shininess:80});
+  var darkMetal = new THREE.MeshPhongMaterial({color:0x404044, specular:0x808080, shininess:60});
+  var redCap    = new THREE.MeshPhongMaterial({color:0xc04030, specular:0x402020, shininess:50});
+  var pexYellow = new THREE.MeshLambertMaterial({color:0xc8a040});
+  var grayPipe  = new THREE.MeshPhongMaterial({color:0x9099a0, specular:0xa0a8b0, shininess:60});
+
+  function tag(mesh){ mesh.userData.kind = 'heatingDistributor'; mesh.castShadow = true; mesh.receiveShadow = true; }
+
+  // 1) 본체 manifold (황동 박스)
+  var body = new THREE.Mesh(new THREE.BoxGeometry(D, H, W), brass);
+  body.position.set(cx, yC, cz);
+  tag(body); scene.add(body);
+
+  // 2) 상단 차단 밸브 2 개 (황동 stem + 빨간 cap)
+  function addValve(zOff){
+    var stem = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.06, 12), brass);
+    stem.position.set(cx, yMax + 0.03, cz + zOff);
+    tag(stem); scene.add(stem);
+
+    var handle = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.020, 12), redCap);
+    handle.position.set(cx, yMax + 0.075, cz + zOff);
+    tag(handle); scene.add(handle);
+  }
+  addValve(-0.18);
+  addValve(+0.18);
+
+  // 3) 하단 PEX 출력관 6 개 (노란 가는 파이프, 본체 아래 5cm 노출)
+  var pexCount = 6;
+  var pexSpacing = (W - 0.10) / (pexCount - 1);  // 균등 분포 (양 끝 5cm 마진)
+  for (var i = 0; i < pexCount; i++){
+    var pz = cz - W/2 + 0.05 + i * pexSpacing;
+    var pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.10, 8), pexYellow);
+    pipe.position.set(cx, yMin - 0.05, pz);
+    tag(pipe); scene.add(pipe);
+  }
+
+  // 4) 좌·우 메인 인입관 2 개 (회색, 벽 쪽으로 6 cm 짧게 — 벽에서 본체로)
+  function addMainPipe(zOff){
+    // 수평 cylinder, x 축 방향 (벽 내면 7.74 → 본체 동측 7.74-0.005)
+    var pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.06, 10), grayPipe);
+    pipe.position.set(7.74 - 0.03, yC, cz + zOff);
+    pipe.rotation.z = Math.PI / 2;   // y축 → x축 회전
+    tag(pipe); scene.add(pipe);
+  }
+  addMainPipe(-0.20);
+  addMainPipe(+0.20);
+})();
