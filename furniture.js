@@ -58,7 +58,7 @@ const FURN_META = {
   71: { id:71, name:'거실 다이닝 테이블',   room:'거실',       pos:{cx:3.60,  cz:0.76 }, size:{W:1.60, D:0.80, H:0.73 }, bbox:[2.80,  0.36,  4.40,  1.16, 0,    0.73] },
   72: { id:72, name:'거실 벤치',            room:'거실',       pos:{cx:3.60,  cz:0.21 }, size:{W:1.40, D:0.30, H:0.42 }, bbox:[2.90,  0.06,  4.30,  0.36, 0,    0.42] },
   73: { id:73, name:'주방 플랩 상부장(우)', room:'주방·식당',  pos:{cx:7.59,  cz:1.65 }, size:{W:0.30, D:1.20, H:0.60 }, bbox:[7.44,  1.05,  7.74,  2.25, 1.50, 2.10], source:'@USER 벽 90 상단 2단 플랩 도어 (반투명, 축소판, 천장에서 30cm 띄움)' },
-  74: { id:74, name:'난방수 분배기',         room:'주방·식당',  pos:{cx:7.665, cz:0.36 }, size:{W:0.50, D:0.15, H:0.40 }, bbox:[7.59,  0.11,  7.74,  0.61, 0.10, 0.50], meetingOnly:true, source:'@USER 5/8 미팅 결정 — 벽 94 (주방 우벽 x=7.8) 정면 아래쪽, 주방 하부장(앞) @FURN#51 동측 60cm 영역 (z=0.06~0.66) 의 BEHIND 위치 (실제 설치는 캐비닛 뒤). meetingOnly:true → 평소 숨김, 키 1 미팅 모드에서만 가시.' },
+  74: { id:74, name:'난방수 분배기',         room:'주방·식당',  pos:{cx:7.365, cz:1.35 }, size:{W:0.50, D:0.15, H:0.40 }, bbox:[7.29,  1.10,  7.44,  1.60, 0.10, 0.50], meetingOnly:true, source:'@USER 5/8 미팅 결정 — 벽 94 (주방 우벽 x=7.8) 중앙 (z=1.35), 벽에서 앞으로 30cm 당김 (x 동측 7.44, 벽 내면 7.74 와 30cm 갭). 주방 하부장(우) @FURN#52 (x=7.14~7.74, z=0.66~2.64) BEHIND. meetingOnly:true → 평소 숨김, 키 1 미팅 모드에서만 가시.' },
 };
 
 /* =====================================================================
@@ -2224,11 +2224,15 @@ defineFurniture({
     tag(pipe); scene.add(pipe);
   }
 
-  // 4) 좌·우 메인 인입관 2 개 (회색, 벽 쪽으로 6 cm 짧게 — 벽에서 본체로)
+  // 4) 좌·우 메인 인입관 2 개 (회색, 본체 동측 → 벽 내면 7.74 까지 가로질러).
+  //    본체가 벽에서 30 cm 앞으로 당겨졌으므로 (CL 51028 → 본 CL) 파이프 길이 = 30 cm.
+  var bodyEastX = meta.bbox[2];        // 7.44 — 본체 동측 면
+  var wallInnerX = 7.74;                // 벽 94 내면
+  var pipeLen = wallInnerX - bodyEastX; // 0.30
+  var pipeCx = (bodyEastX + wallInnerX) / 2;
   function addMainPipe(zOff){
-    // 수평 cylinder, x 축 방향 (벽 내면 7.74 → 본체 동측 7.74-0.005)
-    var pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.06, 10), grayPipe);
-    pipe.position.set(7.74 - 0.03, yC, cz + zOff);
+    var pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, pipeLen, 10), grayPipe);
+    pipe.position.set(pipeCx, yC, cz + zOff);
     pipe.rotation.z = Math.PI / 2;   // y축 → x축 회전
     tag(pipe); scene.add(pipe);
   }
