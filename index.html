@@ -861,14 +861,16 @@ B(0.40, CH, 0.75, mWall, 5.10, CH/2, 0.375);
      · 인터폰 (위, y=1.45): Samsung 비디오 인터폰 단순화
      · 스위치 (아래 좌, y=1.10): 4구 (2x2) 로커 스위치
      · 온도조절기 (아래 우, y=1.10): 다이얼 노브 + 상단 vent
-     · 클러스터 중심 x=1.70 (벽 서쪽 1.2 에서 50cm)
+     · 클러스터 중심 x=4.90 (벽 동쪽 끝 xKit=5.1 에서 20cm 서쪽 — 1인칭에서
+       거실에 서서 벽 103 을 바라볼 때 LEFT 측. 1인칭 yaw=π 면 카메라 right
+       이 -x 라 작은 x=화면 right, 큰 x=화면 left.) 본 CL 에서 1.70→4.90 이전.
 
    meeting-only — 모든 메시 userData.meetingOnly=true + visible=false.
    키 1 미팅 모드에서만 가시. FURN_META 미등록 (badge 시프트 회피).
 ===================================================================== */
 (function(){
   var wallZ  = zLR2 - WT/2;        // 3.44 (벽 103 거실 측 내면)
-  var cxBase = 1.70;               // 클러스터 좌우 중심
+  var cxBase = 4.90;               // 클러스터 좌우 중심 (벽 동쪽 끝 5.1 에서 20cm)
 
   function tag(mesh){
     mesh.userData.meetingOnly = true;
