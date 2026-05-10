@@ -6,9 +6,9 @@
 > 코드 자체가 권위 자료이며, 본 문서는 그 의도·동작·구조를 빠르게 파악하기 위한 안내서다.
 >
 > **빌드 구성** (총 ~920 KB):
-> - `index.html` — ~2 600 줄 / 132 KB. 메인 HTML + UI/CSS + 인라인 JS (씬·라이팅(`LIGHTING`)·재료(`PAL`/`mSkirting` 전역)·레이아웃·헬퍼·텍스처(`TILE_CONFIG`/`WALLPAPER_CONFIG`)·`WALLPAPER_OVERRIDES`·바닥·천장·외벽·내벽·걸레받이·문·라벨·조명·벽지·키친핏·외부문·신발장·영림 3연동 중문·**어셔션 시각 띠 + console.assert/warn monkey-patch**·카메라·컨트롤·M 키 미니맵 토글·디버그·애니메이션 루프). `_doors[]` 애니메이션 루프는 `axis` 필드(기본 `'y'` 스윙, `'x'`/`'z'` 플랩, `kind:'slide'` 미닫이) 분기 보간. **PP 모드 (1 키 토글) 는 powerplan.js 로 분리됨.**
+> - `index.html` — ~2 600 줄 / 132 KB. 메인 HTML + UI/CSS + 인라인 JS (씬·라이팅(`LIGHTING`)·재료(`PAL`/`mSkirting` 전역)·레이아웃·헬퍼·텍스처(`TILE_CONFIG`/`WALLPAPER_CONFIG`)·`WALLPAPER_OVERRIDES`·바닥·천장·외벽·내벽·걸레받이·문·라벨·조명·벽지·키친핏·외부문·신발장·영림 3연동 중문·**어셔션 시각 띠 + console.assert/warn monkey-patch**·카메라·컨트롤·M 키 미니맵 토글·디버그·애니메이션 루프). `_doors[]` 애니메이션 루프는 `axis` 필드(기본 `'y'` 스윙, `'x'`/`'z'` 플랩, `kind:'slide'` 미닫이) 분기 보간. **PP 모드 (2 키 토글, 이전 1) 는 powerplan.js 로 분리됨.**
 > - `outlets.js` — ~210 줄 / 9 KB. `OUTLETS` 배열 (26 항목) + `_outlets[]` 레지스트리 + `gangLayout()` + `buildOutlet` IIFE. **한국 220V Type-F 형태**: 원형 리세스 컵 ⌀46mm + 둥근 핀 홀 2개 ⌀4.4mm 19mm 가로 간격. **2구만 세로 배치** (1/3/4구는 가로). 벽으로부터 돌출 ~37mm (CLEARANCE 35mm + plate 두께 1.5mm). 사용자 요청 (CL 50383) 으로 index.html 인라인 2 에서 분리, inline 1 직후 furniture.js 직전 로드. `_outletStats()` 콘솔 헬퍼 노출.
-> - `powerplan.js` — ~190 줄 / 9 KB. 전원 계획 모드 (1 키 토글). `setPowerPlanMode` / `_initPowerPlanCache` (분류 휴리스틱 + isPreserved 헬퍼 + doorSet 분류) / `_initOutletOutlines` / `_buildPpVisIdxs` / Digit1 keydown 리스너. inline 2 직후 (모든 _doors push 완료 후) minimap.js 직전 로드 — CL 50409 분리.
+> - `powerplan.js` — ~190 줄 / 9 KB. 전원 계획 모드 (2 키 토글, 이전 1, CL 50975+). `setPowerPlanMode` / `_initPowerPlanCache` (분류 휴리스틱 + isPreserved 헬퍼 + doorSet 분류) / `_initOutletOutlines` / `_buildPpVisIdxs` / Digit2 keydown 리스너. inline 2 직후 (모든 _doors push 완료 후) minimap.js 직전 로드 — CL 50409 분리.
 > - `furniture.js` — 2 127 줄 / 105 KB. `FURN_REGISTRY` + `FURN_META` (27 개) + `FURN_CATALOG` (13 종 템플릿) + 가구 IIFE 27 개 (드럼세탁기·소파·다이닝·자전거·침대·책상·책꽂이 3종·벽걸이 자전거·신발장·붙박이장·주방 4종(하부 앞/우, 상부 앞, **축소판 반투명 플랩 상부 우**)·욕실 위생기구·벽등).
 > - `minimap.js` — ~1 400 줄 / 65 KB. 미니맵 IIFE (`ROOMS`/`WALLS`/`DOORS`/`FURNITURE`/`WINDOWS` 데이터 + `WINDOWS_BBOX`/`FURNITURE_BBOX`/`WINDOWS_H`/`WINDOWS_Y0` + 정적 레이어 캐시 + 번호 배지 (cat 필드, **PP 모드 시 wall 만 표시**) + SHIFT 치수 표시·콘센트 하이라이트·**PP 모드 SHIFT 시 콘센트+벽 한정 라벨** + 어셔션 §M/§P/§U/§CC + 콘솔 헬퍼 `_inspect`/`_gap`/`_listRoom`).
 > - `vendor/three.min.js` — 600 KB. Three.js 0.150.1 (UMD, MIT). `vendor/THREE_LICENSE` 동봉.
@@ -318,9 +318,9 @@
 
 전원 콘센트 검토를 위한 별도 시각 모드 + 콘센트 데이터·빌더 외부 파일 분리 + 한국 표준 콘센트 형태 적용. 30+ CL 누적, 18+ 사용자 요청 처리.
 
-#### A. 전원 계획 모드 (PP, **`1` 키 토글**)
+#### A. 전원 계획 모드 (PP, **`2` 키 토글**, 이전 `1` — CL 50975+)
 
-`index.html` 의 `_initPowerPlanCache()` / `_initOutletOutlines()` / `setPowerPlanMode(on)` + Digit1 keydown 리스너. PP 진입 시:
+`index.html` 의 `_initPowerPlanCache()` / `_initOutletOutlines()` / `setPowerPlanMode(on)` + Digit2 keydown 리스너 (이전 Digit1). PP 진입 시:
 
 1. **가구 분류 캐싱** (`_initPowerPlanCache`, 1 회만 실행):
    - hide 대상 bbox 목록 = `FURN_META` 의 모든 항목 — 단 `id===50` (신발장) + `room==='욕실'` (변기·세면대·샤워파티션·휴지걸이·거울장·벽등 7 종) **제외**.
@@ -370,7 +370,7 @@
 #### E. 주요 CL 이력
 
 - CL 50372: CLEARANCE 5mm → 15mm (1cm 추가 돌출, 초기 PP 작업 전)
-- CL 50376~50382: PP 모드 (1 키 토글) 추가. 가구 hide / outlet outline / aim 라벨 + 높이 표시. 욕실 가구 visible 정책 정착.
+- CL 50376~50382: PP 모드 (1 키 토글, 후 CL 50975+ 에서 2 키로 변경) 추가. 가구 hide / outlet outline / aim 라벨 + 높이 표시. 욕실 가구 visible 정책 정착.
 - CL 50383: 한국 Type-F 형태 + outlets.js 분리 + 일괄 OUTLETS 추가/이동.
 - CL 50384/50387: PP 모드 도어 분류 — 캐비닛 도어 hide / 벽 도어 보존 (DOOR_SLACK ±5cm).
 - CL 50386: PP+SHIFT 시 벽 번호 표시.

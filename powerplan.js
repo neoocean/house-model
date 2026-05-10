@@ -1,8 +1,9 @@
 /* =====================================================================
-   POWER PLAN MODE — 사용자 요청 (숫자 1 토글)
+   POWER PLAN MODE — 사용자 요청 (숫자 2 토글, 이전 숫자 1, CL 50975+)
    ----------------------------------------------------------------------
    본 파일은 사용자 요청 (CL 50409, S1 리팩토링) 으로 index.html 인라인 2 에서
-   분리된 전원 계획 모드 로직.
+   분리된 전원 계획 모드 로직. 토글 키는 1→2 로 변경 (CL 50975+) — 1 은
+   2026-05-08 미팅 결정사항 토글용으로 예약 (구체 사항 미정).
 
    의존성 (globals — 모두 본 파일이 로드되기 전에 정의되어 있어야 함):
      - THREE                           (vendor/three.min.js)
@@ -26,7 +27,7 @@
      판단: 도어 pivot xz 가 hide-target FURN bbox 안 (DOOR_SLACK ±5cm) 이면 캐비닛.
    - 크로스헤어가 콘센트 가리키면 라벨에 높이(cm) 추가 표시 (minimap.js _updateAimLabel).
    - SHIFT 시 추가로 벽 번호 표시 (콘센트+벽만, 그 외 무시).
-   - 1 다시 누르면 이전 visible 상태로 복원.
+   - 2 다시 누르면 이전 visible 상태로 복원.
 ===================================================================== */
 var powerPlanMode = false;
 var _ppFurnsToHide = null;     // null = 미캐싱; 첫 토글 시 분류
@@ -215,9 +216,11 @@ function setPowerPlanMode(on){
   }
 }
 
-// 토글 키: 숫자 1 (Digit1)
+// 토글 키: 숫자 2 (Digit2). 이전 1 (Digit1) — 사용자 요청 (CL 50975+) 으로
+// 1 은 2026-05-08 미팅 결정사항 토글용으로 예약 (구체 사항 미정 — 별도 핸들러 추가 시
+// 본 파일과 동일 패턴으로 등록 권장).
 document.addEventListener('keydown', function(e){
-  if (e.code === 'Digit1'){
+  if (e.code === 'Digit2'){
     e.preventDefault();
     setPowerPlanMode(!powerPlanMode);
   }
