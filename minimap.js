@@ -1252,9 +1252,15 @@
            _segVsSeg(x1,z1,x2,z2, rx1,rz1, rx1,rz2);
   }
 
-  // 1) 가구 ↔ 가구 겹침
+  // 1) 가구 ↔ 가구 겹침. meetingOnly:true 가구는 평소 hidden — 다른 가구와의
+  //    bbox 겹침이 의도적 ("뒤에 숨김" 같은 케이스, 예: 난방 분배기 @FURN#74
+  //    가 주방 하부장(앞) @FURN#51 의 SE 코너에 가려짐). 한쪽이라도
+  //    meetingOnly 면 CC 검사 건너뜀.
   FURNITURE_BBOX.forEach(function(b1, i){
+    var meta1 = (typeof FURN_META !== 'undefined') ? FURN_META[i + 47] : null;
     for (var j = i + 1; j < FURNITURE_BBOX.length; j++){
+      var meta2 = (typeof FURN_META !== 'undefined') ? FURN_META[j + 47] : null;
+      if ((meta1 && meta1.meetingOnly) || (meta2 && meta2.meetingOnly)) continue;
       var b2 = FURNITURE_BBOX[j];
       var xOver = b1[0] < b2[2] - 0.005 && b2[0] < b1[2] - 0.005;
       var zOver = b1[1] < b2[3] - 0.005 && b2[1] < b1[3] - 0.005;

@@ -18,7 +18,7 @@
 | `minimap.js` (~1.4 K 줄) | 미니맵 IIFE — `ROOMS`/`WALLS`/`DOORS`/`FURNITURE`/`WINDOWS` 데이터 + `WINDOWS_BBOX`/`FURNITURE_BBOX`/`WINDOWS_H`/`WINDOWS_Y0` + 정적 캔버스 캐시 (타이틀만) + 동적 배지 layer (hover-spread 콜아웃 + cat 필드 — PP 모드 시 wall 만 표시) + SHIFT-aim 식별/치수 라벨 (PP 모드: 콘센트 + 벽 한정) + init-time 어셔션 (§M/§P/§U/§CC) + 콘솔 헬퍼 (`_inspect`/`_gap`/`_listRoom`) |
 | `outlets.js` (~210 줄) | `OUTLETS` 26 항목 + `gangLayout()` + `FACE` lookup + `buildOutlet` IIFE (한국 220V Type-F, 2구 세로) + `[O]` 데이터 init-time 검증 + `_outletStats()` 콘솔 헬퍼 |
 | `powerplan.js` (~200 줄) | 전원 계획 모드 (2 키 토글, 이전 1) — `setPowerPlanMode` / `_initPowerPlanCache` (isPreserved 헬퍼 + 도어 분류 + 휴리스틱 상수 hoist) / `_initOutletOutlines` / `_buildPpVisIdxs` / **`_applyOutletView`** (CL 50995 추출, 미팅 모드 공유) / `[PP]` 어셔션 |
-| `meetingmode.js` (~70 줄) | 5/8 미팅 결정사항 모드 (1 키 토글, CL 50995) — `setMeetingMode` 가 `_applyOutletView` 호출. PP 모드와 mutually exclusive. 향후 조명·난방·디딤판 등 시각화 추가 예정. |
+| `meetingmode.js` (~95 줄) | 5/8 미팅 결정사항 모드 (1 키 토글, CL 50995) — `setMeetingMode` 가 `_applyOutletView` + **`_applyMeetingExtras`** 호출. `_applyMeetingExtras` 는 `userData.meetingOnly === true` 인 메시 가시성 토글 (난방 분배기 등 미팅-only 가구 표시). PP 모드와 mutually exclusive. |
 | `vendor/three.min.js` | Three.js 0.150.1 UMD (벤더링됨) |
 | `DESIGN.md` | 권위 기술 문서 — 항목 A~T + U/CC/W/Z/Y/AA/V/X/DD/BB + §3.6.8 (PP/outlets/Type-F 리팩토링) 적용 이력 |
 | `POWERPLAN.md` | 전원 콘센트 배치 인덱스 (방별 표 + 표준 마운트 높이 + PP 모드 동작 + 어셔션 카탈로그 + CL 이력). |
@@ -76,6 +76,7 @@ LLM 은 “@FURN#48” 같은 식으로 grep 하면 `FURN_META`, `FURNITURE[]`, 
 | 요청 | 단일 수정 위치 |
 |---|---|
 | 가구 X 의 치수 변경 | `FURN_META[id].size` + (마이그레이션된 47/48/49 는) `defineFurniture` spec; 미마이그레이션은 IIFE 내부 const + `FURNITURE_BBOX`도 동기 |
+| 미팅 모드 전용 가구 추가 (난방 분배기 같은 5/8 결정 항목) | `FURN_META[id].meetingOnly = true` + IIFE 에서 `mesh.userData.meetingOnly = true; mesh.visible = false;` — `_applyMeetingExtras` 가 자동 발견·토글. [CC] FURN-FURN 검사도 자동 skip. |
 | 가구 위치 이동 | `FURN_META[id].pos` + `FURNITURE[idx]` (xz) + 빌더 |
 | 조명 톤·강도 | `LIGHTING.rooms[i]` 한 곳 |
 | 천장 조명 마커 위치 | `CEILING_LIGHTS[i]` 한 곳 (시각 전용, 발광 X — 위치 검토용). kind: `flush`/`panel`/`wet`. |

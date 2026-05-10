@@ -793,3 +793,29 @@ function setPowerPlanMode(on){
 **알려진 제약**: 본 CL 에서는 단순히 가구로 추가만 함. 5/8 미팅 모드 (키 1) 진입 시 PP 모드와 동일하게 가구 hide 대상 → 분배기도 숨겨짐. 미팅 모드에서 항목별 보존 보이기를 위해선 별도 follow-up CL 필요 (분배기 + (장차) 조명 마커 + 난방 컨트롤러를 미팅 모드 보존 set 에 등록).
 
 **교훈**: 미팅 결정사항 시각화 모드를 단계적으로 채울 때, "항목 추가" 와 "그 항목을 모드에서 보이게 하기" 는 분리된 작업. 사용자가 양쪽 다 의도하면 명시 필요; 본 CL 은 항목 추가만 — 사용자 후속 요청 시 보존 set 정비.
+
+### 4.24. 미팅-only 가구 패턴 — `meetingOnly` 플래그 (본 CL)
+
+**문제**: 난방 분배기 (@FURN#74, CL 51028) 가 주방 하부장(앞) (@FURN#51) 의 SE 코너 bbox 안에 위치해 [CC] 가구 충돌 경고 발생. 실제 설치 위치 (캐비닛 BEHIND 벽면 부착) 는 정상이고, 평소엔 캐비닛에 가려져 안 보이며 미팅 모드 (키 1) 에서만 확인하면 되는 것을 확인.
+
+**해결 — `meetingOnly` 플래그 패턴**:
+- `FURN_META[id].meetingOnly = true` 마킹.
+- IIFE 에서 메시 생성 시 `userData.meetingOnly = true` + `mesh.visible = false` 초기화.
+- `meetingmode.js _applyMeetingExtras(on)` (신규) 가 `userData.meetingOnly` 메시들 일괄 토글 (lazy 캐시 1 회 빌드).
+- `setMeetingMode` 가 `_applyOutletView` 다음에 `_applyMeetingExtras` 호출 — outlet view 의 가구 hide 를 override.
+- `setPowerPlanMode` 의 mutual exclusion 분기에서도 `_applyMeetingExtras(false)` 호출 — meeting → PP 전환 시 meeting-only 메시 재 hide.
+- `minimap.js [CC] FURN-FURN` 검사: 한쪽이라도 `meetingOnly` 면 skip — 의도된 "BEHIND" 충돌 무시.
+
+**상태 전이**:
+| 진입 | distributor | 이유 |
+|---|---|---|
+| 시작 (모드 off) | hidden | IIFE 초기 visible=false |
+| 키 1 (미팅) | **visible** | `_applyMeetingExtras(true)` override |
+| 키 2 (PP) | hidden | `_applyOutletView` hide, meetingExtras 미실행 |
+| 키 1 → 키 2 | hidden | `setPowerPlanMode` 가 `_applyMeetingExtras(false)` 호출 |
+| 키 2 → 키 1 | **visible** | meeting setter 가 `_applyMeetingExtras(true)` 호출 |
+| 모드 off | hidden | `_applyOutletView` 가 `_ppPrev=false` 복원 |
+
+**향후 적용**: 5/8 미팅 결정사항 6 카테고리 중 추가 시각화 (난방 컨트롤러 신설 등) 도 같은 패턴 — `meetingOnly:true` 플래그 + `mesh.visible=false` 초기화. 캐시는 init 1 회 빌드라 가구 추가 시 자동 반영.
+
+**교훈**: 가구가 "실제론 다른 가구 뒤/안에 숨겨져 있다" 는 의도를 모델에 표현할 때 (캐비닛 뒤 분배기 / 천장 안 덕트 등), bbox 충돌을 전부 정합화하려고 위치를 흔드는 대신 "의도적 겹침" 플래그 + 가시성 모드 조합으로 표현하는 것이 정직. [CC] 같은 정적 검사는 의도성을 알 수 없으므로 명시적 opt-out 플래그 (`meetingOnly`) 가 단순하고 안정.

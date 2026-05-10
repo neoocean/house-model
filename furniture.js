@@ -58,7 +58,7 @@ const FURN_META = {
   71: { id:71, name:'거실 다이닝 테이블',   room:'거실',       pos:{cx:3.60,  cz:0.76 }, size:{W:1.60, D:0.80, H:0.73 }, bbox:[2.80,  0.36,  4.40,  1.16, 0,    0.73] },
   72: { id:72, name:'거실 벤치',            room:'거실',       pos:{cx:3.60,  cz:0.21 }, size:{W:1.40, D:0.30, H:0.42 }, bbox:[2.90,  0.06,  4.30,  0.36, 0,    0.42] },
   73: { id:73, name:'주방 플랩 상부장(우)', room:'주방·식당',  pos:{cx:7.59,  cz:1.65 }, size:{W:0.30, D:1.20, H:0.60 }, bbox:[7.44,  1.05,  7.74,  2.25, 1.50, 2.10], source:'@USER 벽 90 상단 2단 플랩 도어 (반투명, 축소판, 천장에서 30cm 띄움)' },
-  74: { id:74, name:'난방수 분배기',         room:'주방·식당',  pos:{cx:7.665, cz:0.36 }, size:{W:0.50, D:0.15, H:0.40 }, bbox:[7.59,  0.11,  7.74,  0.61, 0.10, 0.50], source:'@USER 5/8 미팅 결정 — 벽 94 (주방 우벽 x=7.8) 정면 아래쪽 바닥, 주방 하부장(우) 남측 빈 공간 (z=0.06~0.66)' },
+  74: { id:74, name:'난방수 분배기',         room:'주방·식당',  pos:{cx:7.665, cz:0.36 }, size:{W:0.50, D:0.15, H:0.40 }, bbox:[7.59,  0.11,  7.74,  0.61, 0.10, 0.50], meetingOnly:true, source:'@USER 5/8 미팅 결정 — 벽 94 (주방 우벽 x=7.8) 정면 아래쪽, 주방 하부장(앞) @FURN#51 동측 60cm 영역 (z=0.06~0.66) 의 BEHIND 위치 (실제 설치는 캐비닛 뒤). meetingOnly:true → 평소 숨김, 키 1 미팅 모드에서만 가시.' },
 };
 
 /* =====================================================================
@@ -2185,7 +2185,16 @@ defineFurniture({
   var pexYellow = new THREE.MeshLambertMaterial({color:0xc8a040});
   var grayPipe  = new THREE.MeshPhongMaterial({color:0x9099a0, specular:0xa0a8b0, shininess:60});
 
-  function tag(mesh){ mesh.userData.kind = 'heatingDistributor'; mesh.castShadow = true; mesh.receiveShadow = true; }
+  // 메시 태그: kind 식별 + meetingOnly (5/8 미팅 모드에서만 가시) + 초기 visible=false.
+  // _initPowerPlanCache 의 hide-target 분류엔 그대로 들어가고, _applyOutletView(true)
+  // 가 호출되면 visible=false → meetingmode.js _applyMeetingExtras(true) 가 override
+  // 로 visible=true. 평상 시 / PP 모드에선 항상 hidden.
+  function tag(mesh){
+    mesh.userData.kind = 'heatingDistributor';
+    mesh.userData.meetingOnly = true;
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    mesh.visible = false;     // 평소 숨김 — 키 1 미팅 모드에서만 가시
+  }
 
   // 1) 본체 manifold (황동 박스)
   var body = new THREE.Mesh(new THREE.BoxGeometry(D, H, W), brass);

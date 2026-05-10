@@ -37,6 +37,32 @@ function _getMeetingBadge(){
   return _meetingBadge;
 }
 
+// 미팅-only 메시 캐시 — `userData.meetingOnly === true` 인 메시 한 번만 수집.
+// 첫 _applyMeetingExtras 호출 시 lazy build. 신규 미팅-only 가구 추가 시
+// (난방 컨트롤러 등) FURN_META 에 meetingOnly:true 마크 + IIFE 에서 동일 패턴
+// (mesh.userData.meetingOnly = true; mesh.visible = false;) 사용 → 자동 캐싱.
+var _meetingOnlyMeshes = null;
+function _initMeetingOnlyCache(){
+  if (_meetingOnlyMeshes !== null) return;
+  _meetingOnlyMeshes = [];
+  scene.traverse(function(obj){
+    if (obj.isMesh && obj.userData && obj.userData.meetingOnly === true){
+      _meetingOnlyMeshes.push(obj);
+    }
+  });
+}
+
+// 미팅 모드 전용 가시성 override. _applyOutletView 가 모든 가구를 hide 한
+// 후 본 함수가 meeting-only 메시만 다시 visible 로 복원. PP 모드와 다른 점.
+//   on=true:  meeting-only 메시 visible=true (override _applyOutletView 의 hide)
+//   on=false: meeting-only 메시 visible=false (평소 상태로 복귀)
+function _applyMeetingExtras(on){
+  _initMeetingOnlyCache();
+  for (var i = 0; i < _meetingOnlyMeshes.length; i++){
+    _meetingOnlyMeshes[i].visible = on;
+  }
+}
+
 function setMeetingMode(on){
   if (on === !!window.meetingMode) return;
   // PP 모드와 mutually exclusive. 시각 효과 (_applyOutletView) 는 두 모드
@@ -44,7 +70,7 @@ function setMeetingMode(on){
   var ppActive = !!window.powerPlanMode;
   var visualWasOn = !!window.meetingMode || ppActive;
   if (on && ppActive){
-    // PP → 미팅 전환: PP 플래그·배지만 정리, 시각은 유지.
+    // PP → 미팅 전환: PP 플래그·배지만 정리, 시각은 유지 (meeting-only 추가는 아래).
     window.powerPlanMode = false;
     var ppBadge = document.getElementById('power-plan-badge');
     if (ppBadge) ppBadge.style.display = 'none';
@@ -52,6 +78,8 @@ function setMeetingMode(on){
   window.meetingMode = on;
 
   if (visualWasOn !== on) _applyOutletView(on);
+  // meeting-only 시각 (난방 분배기 등) — _applyOutletView 후에 호출해 hide override.
+  _applyMeetingExtras(on);
   var badge = _getMeetingBadge(); if (badge) badge.style.display = on ? 'block' : 'none';
 }
 
