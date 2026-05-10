@@ -1634,12 +1634,12 @@ LIGHTING.rooms.forEach(function(r){
 
   // ─────────────────────────────────────────────────────────────────
   // _doors[13] — 문 29 (복도 외벽 z=0 갭, 단순 인테리어 도어로 활성화)
-  //   개구부 x=10.8~11.7, z=0 | 힌지 x=10.8 (좌측)
-  //   panel 로컬 (DW/2, DH/2, 0) rot.y=0 → +x 방향 확장
-  //   openRY=-π/2 → +z 방향(복도 안쪽)으로 열림
+  //   개구부 x=10.8~11.7, z=0 | 힌지 x=11.7 (우측, 사용자 요청으로 반대편 이동)
+  //   panel 로컬 (-DW/2, DH/2, 0) rot.y=0 → -x 방향 확장 (자유단 x=10.8)
+  //   openRY=+π/2 → +z 방향(복도 안쪽)으로 열림
   // ─────────────────────────────────────────────────────────────────
   (function(){
-    var pivX = 10.8, pivZ = 0;
+    var pivX = 11.7, pivZ = 0;                // 힌지 우측 (반대편)
     var dW = DW, dH = DH, dT = 0.040;
     var pivot = new THREE.Object3D();
     pivot.position.set(pivX, 0, pivZ);
@@ -1650,18 +1650,18 @@ LIGHTING.rooms.forEach(function(r){
       new THREE.BoxGeometry(dW, dH, dT),
       mPanel
     );
-    panel.position.set(dW/2, dH/2, 0);
+    panel.position.set(-dW/2, dH/2, 0);       // -x 방향 확장 (자유단 = 좌, x=10.8 world)
     panel.castShadow = true;
     panel.receiveShadow = true;
     pivot.add(panel);
 
-    // 손잡이 — 자유단(x=DW=0.9)에 양면
-    addLever(pivot, dW - 0.07, 1.05, -dT/2 - 0.001,
-             new THREE.Vector3(0, 0, -1), new THREE.Vector3(-1, 0, 0));
-    addLever(pivot, dW - 0.07, 1.05, +dT/2 + 0.001,
-             new THREE.Vector3(0, 0, +1), new THREE.Vector3(-1, 0, 0));
+    // 손잡이 — 자유단(local x=-DW=-0.9, world x=10.8)에 양면. 레버는 힌지 향(+x)
+    addLever(pivot, -(dW - 0.07), 1.05, -dT/2 - 0.001,
+             new THREE.Vector3(0, 0, -1), new THREE.Vector3(+1, 0, 0));
+    addLever(pivot, -(dW - 0.07), 1.05, +dT/2 + 0.001,
+             new THREE.Vector3(0, 0, +1), new THREE.Vector3(+1, 0, 0));
 
-    _doors.push({pivot:pivot, doorMesh:panel, openRY:-Math.PI/2, isOpen:false});
+    _doors.push({pivot:pivot, doorMesh:panel, openRY:+Math.PI/2, isOpen:false});
   })();
 
   // ─────────────────────────────────────────────────────────────────
