@@ -844,6 +844,98 @@ B(0.50, CH, zB-zBath, mWall, 7.55, CH/2, (zBath+zB)/2);
 //     씽크대(z=0~0.66)보다 더 튀어나오는 깊이. 폭 0.40m, 깊이 0.75m, 전고.
 B(0.40, CH, 0.75, mWall, 5.10, CH/2, 0.375);
 
+/* =====================================================================
+   벽 103 거실 측 컨트롤 패널 — 인터폰 + 스위치 + 온도조절기
+   ----------------------------------------------------------------------
+   사용자 요청 (사진 첨부): 벽 103 (z=zLR2=3.5, x=1.2~5.1, 거실 ↔ 침실 2
+   경계) 의 거실 측 (남면 z=3.44) 왼쪽 (서쪽 끝, 분리벽 코너 근처) 에
+   한국 아파트 표준 컨트롤 패널 클러스터. 5/8 미팅 결정사항 ④⑤
+   (조명 스위치 + 난방 컨트롤러).
+
+   배치 (사진 참고):
+     · 인터폰 (위, y=1.45): Samsung 비디오 인터폰 단순화
+     · 스위치 (아래 좌, y=1.10): 4구 (2x2) 로커 스위치
+     · 온도조절기 (아래 우, y=1.10): 다이얼 노브 + 상단 vent
+     · 클러스터 중심 x=1.70 (벽 서쪽 1.2 에서 50cm)
+
+   meeting-only — 모든 메시 userData.meetingOnly=true + visible=false.
+   키 1 미팅 모드에서만 가시. FURN_META 미등록 (badge 시프트 회피).
+===================================================================== */
+(function(){
+  var wallZ  = zLR2 - WT/2;        // 3.44 (벽 103 거실 측 내면)
+  var cxBase = 1.70;               // 클러스터 좌우 중심
+
+  function tag(mesh){
+    mesh.userData.meetingOnly = true;
+    mesh.userData.kind = 'wallControl';
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    mesh.visible = false;
+  }
+
+  var ivory     = new THREE.MeshLambertMaterial({color:0xf0e8d8});
+  var screen    = new THREE.MeshLambertMaterial({color:0x202020});
+  var redCap    = new THREE.MeshPhongMaterial({color:0xc04030, specular:0x402020, shininess:50});
+  var yellowCap = new THREE.MeshPhongMaterial({color:0xe8d080, specular:0x404020, shininess:60});
+  var dialKnob  = new THREE.MeshPhongMaterial({color:0xe0d8c8, specular:0x808080, shininess:30});
+
+  function box(w, h, d, mat, x, y, z){
+    var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    m.position.set(x, y, z);
+    tag(m); scene.add(m);
+  }
+  function cylX(r, h, mat, x, y, z){
+    // axis 회전: y → z (벽면 수직 방향), 손잡이/버튼이 벽에서 돌출
+    var m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 16), mat);
+    m.position.set(x, y, z);
+    m.rotation.x = Math.PI / 2;
+    tag(m); scene.add(m);
+  }
+
+  // ① 인터폰 — Samsung 스타일 (단순화), y=1.45
+  var iW = 0.30, iH = 0.25, iD = 0.04;
+  var iCx = cxBase, iCy = 1.45;
+  var iCz = wallZ - iD/2;          // 본체 중심 z (배면 wallZ, 전면 wallZ-iD)
+  // 메인 플레이트
+  box(iW, iH, iD, ivory, iCx, iCy, iCz);
+  // 핸드셋 (좌측, 수직 박스 형태로 단순화)
+  box(0.045, 0.18, 0.045, ivory, iCx - 0.10, iCy + 0.02, iCz - iD/2 - 0.022);
+  // 화면 (우측 상단, 어두운 사각)
+  box(0.10, 0.08, 0.005, screen, iCx + 0.05, iCy + 0.05, iCz - iD/2 - 0.002);
+  // 빨간 LED 작은 사각
+  box(0.020, 0.020, 0.010, redCap, iCx + 0.02, iCy - 0.02, iCz - iD/2 - 0.005);
+  // 비상 버튼 (큰 노란 원형, 우측 하단)
+  cylX(0.022, 0.010, yellowCap, iCx + 0.10, iCy - 0.075, iCz - iD/2 - 0.005);
+
+  // ② 스위치 — 인터폰 아래 좌측, y=1.10
+  var swX  = cxBase - 0.08;
+  var swY  = 1.10;
+  var swSz = 0.12, swD = 0.012;
+  var swZ  = wallZ - swD/2;
+  // 플레이트
+  box(swSz, swSz, swD, ivory, swX, swY, swZ);
+  // 4 구 로커 스위치 (2x2, 작은 흰 사각 약간 돌출)
+  var rW = 0.045;
+  for (var ri = 0; ri < 2; ri++){
+    for (var rj = 0; rj < 2; rj++){
+      var rx = swX + (rj - 0.5) * 0.05;
+      var ry = swY + (0.5 - ri) * 0.025;
+      box(rW, rW, 0.005, ivory, rx, ry, swZ - swD/2 - 0.003);
+    }
+  }
+
+  // ③ 온도조절기 — 인터폰 아래 우측, y=1.10
+  var thX = cxBase + 0.08;
+  var thY = 1.10;
+  var thW = 0.10, thH = 0.12, thD = 0.025;
+  var thZ = wallZ - thD/2;
+  // 플레이트
+  box(thW, thH, thD, ivory, thX, thY, thZ);
+  // 다이얼 노브 (cylinder, 본체 앞면 돌출)
+  cylX(0.018, 0.012, dialKnob, thX, thY - 0.015, thZ - thD/2 - 0.006);
+  // 상단 vent grille (어두운 가는 띠)
+  box(thW * 0.7, 0.008, 0.003, screen, thX, thY + 0.045, thZ - thD/2 - 0.002);
+})();
+
 // ── 벽지 텍스처 (아치 스팬드럴 + 내부 벽지 공용) — 항목 Q 파라미터화 ──────────────────
 const WALLPAPER_CONFIG = {
   size:           512,                      // 캔버스 1변 (px)
