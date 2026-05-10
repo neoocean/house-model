@@ -2,12 +2,12 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no,maximum-scale=1.0">
 <title>아파트 3D 뷰어</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{overflow:hidden;background:#000}
-canvas{display:block}
+canvas{display:block;touch-action:none}  /* 모바일에서 브라우저 기본 핀치줌·스크롤 차단 — 자체 핸들러로 처리 */
 #ui{
   position:fixed;top:14px;left:14px;
   background:rgba(0,0,0,.72);color:#eee;
@@ -2058,6 +2058,13 @@ var drag = false, dragX = 0, dragY = 0;
 var keys = {};
 var eyeHeight = 1.60;              // 1인칭 눈높이 (m, 기본 160cm), Q/E로 ±1cm 조정
 
+// 모바일 감지 — 사용자 요청 (CL 50975+, "터치 이벤트 존재 + 작은 화면").
+//   true 일 때: UI(#ui)·미니맵(#minimap, #minimap-legend) 숨김 + 한 손가락 드래그
+//   = WASD 대체 카메라 이동 + 핀치 = 시선 방향 전진/후진. 데스크톱에서는 false 라
+//   기존 동작 100% 보존.
+var IS_MOBILE = ('ontouchstart' in window) && (window.innerWidth <= 1024);
+var _touchInput = { x: 0, y: 0 };  // -1..+1 가상 조이스틱 (animate() 가 매 프레임 참조)
+
 var badge = document.getElementById('badge');
 var ch    = document.getElementById('ch');
 var hint  = document.getElementById('hint');
@@ -2068,6 +2075,16 @@ badge.textContent = '🎥 프리 카메라 모드';
 badge.style.background = 'rgba(130,30,190,.88)';
 ch.style.display = 'none';
 hint.style.opacity = '0';  // 1인칭 힌트 숨김
+
+if (IS_MOBILE) {
+  // 모바일에서는 키바인딩 알림(#ui) 과 미니맵 모두 숨김 — 사용자 요청.
+  var _mUi = document.getElementById('ui');
+  var _mMc = document.getElementById('minimap');
+  var _mMl = document.getElementById('minimap-legend');
+  if (_mUi) _mUi.style.display = 'none';
+  if (_mMc) _mMc.style.display = 'none';
+  if (_mMl) _mMl.style.display = 'none';
+}
 
 document.addEventListener('keydown', function(e) {
   keys[e.code] = true;
@@ -2284,6 +2301,101 @@ document.addEventListener('mousemove', function(e) {
   if (pitch < -1.38) pitch = -1.38;
 });
 
+/* =====================================================================
+   MOBILE TOUCH SUPPORT — 사용자 요청 (CL 50975+)
+   ----------------------------------------------------------------------
+   IS_MOBILE 일 때만 등록. 데스크톱은 영향 없음.
+     · 한 손가락 드래그  → _touchInput (가상 조이스틱) 갱신 → animate()
+                          가 WASD 와 동일하게 _move 에 반영
+     · 두 손가락 핀치    → 거리 변화량 × PINCH_SPEED 만큼 시선 방향 전진/
+                          후진 (휠 핸들러와 동일 패턴, 즉시 반영)
+     · 한 손가락 짧은 탭 → 마우스 click 등가 — _toggleDoorAtNDC 로 문 토글
+   탭 판정: 이동 < TAP_MAX_MOVE 픽셀 + 시간 < TAP_MAX_TIME ms.
+===================================================================== */
+if (IS_MOBILE) {
+  var _tStart      = null;   // 한 손가락 드래그 시작 {x, y, t, maxMove}
+  var _pinchStart  = null;   // 두 손가락 핀치 시작 거리 (px)
+  var TAP_MAX_MOVE = 10;     // px (이 미만 이동 + 짧은 시간 = 탭)
+  var TAP_MAX_TIME = 300;    // ms
+  var DRAG_MAX_R   = 80;     // px (이 이상 드래그하면 100% 입력)
+  var PINCH_SPEED  = 0.012;  // 핀치 거리 px → 카메라 이동 m (휠 speed 와 동일)
+
+  renderer.domElement.addEventListener('touchstart', function(e) {
+    e.preventDefault();
+    if (e.touches.length === 1) {
+      var t = e.touches[0];
+      _tStart = { x: t.clientX, y: t.clientY, t: performance.now(), maxMove: 0 };
+      _touchInput.x = 0; _touchInput.y = 0;
+      _pinchStart = null;
+    } else if (e.touches.length === 2) {
+      var a = e.touches[0], b = e.touches[1];
+      var dx = b.clientX - a.clientX, dy = b.clientY - a.clientY;
+      _pinchStart = Math.sqrt(dx*dx + dy*dy);
+      _tStart = null;
+      _touchInput.x = 0; _touchInput.y = 0;
+    }
+  }, { passive: false });
+
+  renderer.domElement.addEventListener('touchmove', function(e) {
+    e.preventDefault();
+    if (e.touches.length === 1 && _tStart) {
+      var t = e.touches[0];
+      var dx = t.clientX - _tStart.x;
+      var dy = t.clientY - _tStart.y;
+      var r = Math.sqrt(dx*dx + dy*dy);
+      if (r > _tStart.maxMove) _tStart.maxMove = r;
+      _touchInput.x = Math.max(-1, Math.min(1, dx / DRAG_MAX_R));
+      _touchInput.y = Math.max(-1, Math.min(1, dy / DRAG_MAX_R));
+    } else if (e.touches.length === 2 && _pinchStart != null) {
+      var a = e.touches[0], b = e.touches[1];
+      var dxx = b.clientX - a.clientX, dyy = b.clientY - a.clientY;
+      var newDist = Math.sqrt(dxx*dxx + dyy*dyy);
+      var delta = newDist - _pinchStart;
+      _pinchStart = newDist;
+      // 핀치 → 시선 방향으로 즉시 이동 (휠 핸들러와 동일)
+      var moveAmt = delta * PINCH_SPEED;
+      var cosP = Math.cos(pitch);
+      camera.position.x += -Math.sin(yaw) * cosP * moveAmt;
+      camera.position.y +=  Math.sin(pitch) * moveAmt;
+      camera.position.z += -Math.cos(yaw) * cosP * moveAmt;
+    }
+  }, { passive: false });
+
+  renderer.domElement.addEventListener('touchend', function(e) {
+    e.preventDefault();
+    // 짧은 탭 (이동 < TAP_MAX_MOVE px + 시간 < TAP_MAX_TIME ms) → 문 토글
+    if (e.touches.length === 0 && _tStart) {
+      var elapsed = performance.now() - _tStart.t;
+      if (_tStart.maxMove < TAP_MAX_MOVE && elapsed < TAP_MAX_TIME) {
+        var rect = renderer.domElement.getBoundingClientRect();
+        var ct = e.changedTouches[0];
+        var ndcX =  ((ct.clientX - rect.left) / rect.width)  * 2 - 1;
+        var ndcY = -((ct.clientY - rect.top)  / rect.height) * 2 + 1;
+        _toggleDoorAtNDC(ndcX, ndcY);
+      }
+    }
+    if (e.touches.length === 0) {
+      _tStart = null;
+      _pinchStart = null;
+      _touchInput.x = 0;
+      _touchInput.y = 0;
+    } else if (e.touches.length === 1) {
+      // 핀치 후 한 손가락만 남음 → 신규 드래그 시작점으로 등록
+      var t = e.touches[0];
+      _tStart = { x: t.clientX, y: t.clientY, t: performance.now(), maxMove: 0 };
+      _pinchStart = null;
+      _touchInput.x = 0; _touchInput.y = 0;
+    }
+  }, { passive: false });
+
+  renderer.domElement.addEventListener('touchcancel', function(e) {
+    _tStart = null;
+    _pinchStart = null;
+    _touchInput.x = 0;
+    _touchInput.y = 0;
+  }, { passive: false });
+}
+
 </script>
 <script src="powerplan.js"></script>
 <script src="minimap.js"></script>
@@ -2368,6 +2480,13 @@ function animate() {
   if (keys['KeyS']) _move.addScaledVector(_fwd,   -1);
   if (keys['KeyA']) _move.addScaledVector(_right, -1);
   if (keys['KeyD']) _move.addScaledVector(_right,  1);
+
+  // 모바일 가상 조이스틱 — 한 손가락 드래그 입력 (-1..+1)을 WASD 와 동등하게
+  // _move 에 합산. 위 드래그(-y)=전진, 아래(+y)=후진, 좌(-x)=좌, 우(+x)=우.
+  if (IS_MOBILE && (_touchInput.x !== 0 || _touchInput.y !== 0)) {
+    _move.addScaledVector(_fwd,   -_touchInput.y);
+    _move.addScaledVector(_right,  _touchInput.x);
+  }
 
   if (freeMode) {
     if (keys['KeyE']) _move.addScaledVector(_up3,  1);

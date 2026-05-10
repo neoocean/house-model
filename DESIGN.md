@@ -664,3 +664,37 @@
 6. 방 — hit 점이 ROOMS 사각형 안 (역순, 가장 작은 박스 우선)
 
 **교훈**: 단일 슬롯 + hysteresis 는 "한 번에 하나만 보여주는 UI" 전제에서 합리적. UI 모델을 "동시 표시" 로 바꾸면 hysteresis 자체가 무의미 — 시간 hold 로 푼 문제는 사실 "정보 손실 vs 깜빡임" 트레이드오프였음. 다중 표시는 정보 손실이 0 이라 깜빡임도 발생하지 않음 (각 카테고리는 자기 조건이 맞으면 보임/안 맞으면 사라짐, 전환 없음).
+
+
+### 4.21. 모바일 터치 지원 (CL 50975+)
+
+**요청**: "모바일 환경에서 접근하면 [화면에] 3D 모델을 띄우고 손가락으로 스크롤(=카메라 이동)하고, 핀치로 줌인/줌아웃, 그리고 미니맵 + 키바인딩 알림 숨기기로 동작하도록".
+
+**감지**: `IS_MOBILE = ('ontouchstart' in window) && (window.innerWidth <= 1024)`.
+- 둘 다 true 일 때만 모바일 분기 (터치 노트북 제외, ≤1024px 는 일반적 폰·태블릿 portrait/landscape 커버).
+- 한 번 init 시 평가 — 화면 회전 등 동적 변화 미감지 (필요 시 새로고침).
+
+**UI 변화 (모바일만)**:
+- `#ui` (키바인딩 안내) 숨김 — 모바일은 키보드 없음.
+- `#minimap` + `#minimap-legend` 숨김.
+- `#power-plan-badge` 등 다른 배지는 그대로 (PP 모드 진입은 키보드 필요해서 모바일에서 사실상 작동 안 함, 배지가 떠도 무해).
+
+**터치 핸들러 (3 종)**:
+1. **한 손가락 드래그 → 카메라 이동 (WASD 대체)**: touchstart 시 시작 좌표 기록 → touchmove 마다 누적 dx/dy 를 ±DRAG_MAX_R(80px) 로 정규화 → 전역 `_touchInput {x, y}` (-1..+1) 에 저장 → animate() 가 매 프레임 `_move.addScaledVector(_fwd, -_touchInput.y)` + `_move.addScaledVector(_right, _touchInput.x)` 로 합산. WASD 와 동일한 `_move` 정규화 + `WALK`/`FLY * dt` 스케일링 통과.
+2. **두 손가락 핀치 → 시선 방향 전진/후진**: touchstart 시 두 손가락 거리 기록 → touchmove 마다 새 거리 계산, delta = newDist - oldDist → `delta * PINCH_SPEED(0.012)` 만큼 시선 방향(yaw·pitch 기반) 으로 즉시 이동. 휠 핸들러와 정확히 동일 패턴.
+3. **한 손가락 짧은 탭 → 문 토글**: touchend 시 maxMove < 10px + elapsed < 300ms 면 `_toggleDoorAtNDC` 호출 (마우스 click 등가).
+
+**경계 처리**:
+- 핀치 종료 (2→1 손가락) 시 남은 손가락을 새 드래그 시작점으로 등록 — 핀치 후 한 손가락 떼면 즉시 카메라 점프 회피.
+- touchcancel (시스템 인터럽트, 알림 등) → 모든 입력 상태 리셋.
+- canvas CSS `touch-action: none` 추가 — 브라우저 기본 핀치줌·풀투리프레시·스크롤 차단 (자체 핸들러로 처리).
+- viewport meta `user-scalable=no, maximum-scale=1.0` 추가 — iOS Safari 더블탭 줌 방지.
+
+**데스크톱 영향**: 0. `IS_MOBILE === false` 면 모든 터치 코드 경로가 가드되어 등록 자체가 안 됨. 마우스/키보드/휠 핸들러는 그대로.
+
+**알려진 제약**:
+- 모바일에서 Space (모드 토글), R (리셋), Q/E (눈높이), M (미니맵 재표시), 1/2 (PP/미팅 토글), SHIFT (조준 라벨) 모두 사용 불가 — 키보드 의존 기능. 필요 시 화면 버튼 추가 (후속 요청 시).
+- 화면 회전 시 IS_MOBILE 재평가 안 됨 — 데스크톱 ↔ 모바일 사이 경계 (1024px 근처) 에서 회전 시 새로고침 필요.
+- 1인칭 모드 진입 불가 (Space 키 필요) — 모바일은 항상 freeMode 에서 동작.
+
+**교훈**: 데스크톱-only 인터랙션 (마우스 + 키보드) 을 가정한 코드에 모바일을 더할 때, 가장 안전한 패턴은 (1) 모바일을 별도 입력 채널로 모델링 (`_touchInput` 가상 조이스틱) → 기존 `_move` 합산 로직에 합류, (2) 데스크톱 코드 경로는 그대로 보존 (`IS_MOBILE` 가드). 기존 핸들러를 모바일용으로 "다용도화" 하는 것보다 추가가 안전.
