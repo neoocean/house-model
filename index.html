@@ -859,8 +859,9 @@ B(0.40, CH, 0.75, mWall, 5.10, CH/2, 0.375);
 
    배치 (사진 참고):
      · 인터폰 (위, y=1.45): Samsung 비디오 인터폰 단순화
-     · 스위치 (아래 좌, y=1.10): 4구 (2x2) 로커 스위치
-     · 온도조절기 (아래 우, y=1.10): 다이얼 노브 + 상단 vent
+     · 스위치 (아래, 1인칭 시야 LEFT, y=1.10): 4구 (2x2) 로커 스위치
+     · 온도조절기 (아래, 1인칭 시야 RIGHT, y=1.10): 다이얼 노브 + 상단 vent
+       (1인칭 yaw=π 북향 카메라 right=-x → 작은 x=화면 right, 큰 x=화면 left)
      · 클러스터 중심 x=4.90 (벽 동쪽 끝 xKit=5.1 에서 20cm 서쪽 — 1인칭에서
        거실에 서서 벽 103 을 바라볼 때 LEFT 측. 1인칭 yaw=π 면 카메라 right
        이 -x 라 작은 x=화면 right, 큰 x=화면 left.) 본 CL 에서 1.70→4.90 이전.
@@ -913,8 +914,8 @@ B(0.40, CH, 0.75, mWall, 5.10, CH/2, 0.375);
   // 비상 버튼 (큰 노란 원형, 우측 하단)
   cylX(0.022, 0.010, yellowCap, iCx + 0.10, iCy - 0.075, iCz - iD/2 - 0.005);
 
-  // ② 스위치 — 인터폰 아래 좌측, y=1.10
-  var swX  = cxBase - 0.08;
+  // ② 스위치 — 인터폰 아래, 1인칭 시야 LEFT (y=1.10). 본 CL 에서 swap.
+  var swX  = cxBase + 0.08;       // +x → 1인칭 yaw=π 카메라 left
   var swY  = 1.10;
   var swSz = 0.12, swD = 0.012;
   var swZ  = wallZ - swD/2;
@@ -930,8 +931,8 @@ B(0.40, CH, 0.75, mWall, 5.10, CH/2, 0.375);
     }
   }
 
-  // ③ 온도조절기 — 인터폰 아래 우측, y=1.10
-  var thX = cxBase + 0.08;
+  // ③ 온도조절기 — 인터폰 아래, 1인칭 시야 RIGHT (y=1.10). 본 CL 에서 swap.
+  var thX = cxBase - 0.08;        // -x → 1인칭 yaw=π 카메라 right
   var thY = 1.10;
   var thW = 0.10, thH = 0.12, thD = 0.025;
   var thZ = wallZ - thD/2;
