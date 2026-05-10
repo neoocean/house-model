@@ -15,7 +15,8 @@
 |---|---|
 | `index.html` (~2.5 K 줄) | HTML 셸 + UI/CSS + 인라인 JS (씬·`LIGHTING`·`PAL`·레이아웃·헬퍼·텍스처(`TILE_CONFIG`/`WALLPAPER_CONFIG`)·`WALLPAPER_OVERRIDES`·바닥·천장·외벽·내벽·걸레받이(`mSkirting` 전역)·문(swing/flap/slide)·라벨·조명·벽지·키친핏·외부문·신발장·**영림 3연동 중문**·어셔션 시각 띠·카메라·컨트롤·디버그·애니메이션) |
 | `outlets.js` (~200 줄) | `OUTLETS` 26 항목 + `_outlets[]` 레지스트리 + `buildOutlet` IIFE (한국 220V Type-F, 2구 세로) + `_outletStats()` 콘솔 헬퍼 |
-| `powerplan.js` (~190 줄) | 전원 계획 모드 (`2` 키 토글, 이전 `1`): `setPowerPlanMode` / `_initPowerPlanCache` / `_initOutletOutlines` / `_buildPpVisIdxs` |
+| `powerplan.js` (~200 줄) | 전원 계획 모드 (`2` 키 토글, 이전 `1`): `setPowerPlanMode` / `_initPowerPlanCache` / `_initOutletOutlines` / `_buildPpVisIdxs` / `_applyOutletView` (CL 50983 추출, 미팅 모드 공유) |
+| `meetingmode.js` (~70 줄) | 5/8 미팅 결정사항 모드 (`1` 키 토글, CL 50983) — `setMeetingMode`. 첫 시각화 = PP 모드와 동일. PP 모드와 mutually exclusive. |
 | `furniture.js` (~2.1 K 줄) | `FURN_REGISTRY` + `FURN_META` (27 개 메타) + `FURN_CATALOG` (13 종 템플릿) + 가구 IIFE 27 개 |
 | `minimap.js` (~1.4 K 줄) | 미니맵 IIFE — `ROOMS`/`WALLS`/`DOORS`/`FURNITURE`/`WINDOWS` 데이터 + 정적 캔버스 캐시 + 동적 배지 (cat 필드, PP 모드 시 wall 만 + hover-spread 콜아웃) + SHIFT-aim 식별/치수 라벨 (PP 모드: 콘센트+벽 한정) + init-time 어셔션 (§M/§P/§U/§CC) + 콘솔 헬퍼 (`_inspect`/`_gap`/`_listRoom`) |
 | `vendor/three.min.js` | Three.js 0.150.1 UMD (벤더링됨) |
@@ -23,7 +24,7 @@
 
 ## 실행 / 검증
 - 실행: 브라우저로 `model/index.html` 열기. 빌드 단계 없음.
-- 단축키: `Space` (모드 토글), `WASD` (이동), `Q`/`E` (위/아래 또는 눈높이), `R` (카메라 리셋), `SHIFT` (조준 라벨+치수), **`2` (전원 계획 모드 토글, 이전 `1`)**, **`1` (2026-05-08 미팅 결정사항 토글 — 예약, 핸들러 미등록)**, **`M` (미니맵 표시/숨김)**.
+- 단축키: `Space` (모드 토글), `WASD` (이동), `Q`/`E` (위/아래 또는 눈높이), `R` (카메라 리셋), `SHIFT` (조준 라벨+치수), **`1` (5/8 미팅 결정사항 모드, CL 50983 — PP 모드와 mutually exclusive)**, **`2` (전원 계획 모드 토글)**, **`M` (미니맵 표시/숨김)**.
 - 모바일 환경 (CL 50975+, `ontouchstart` + 화면 ≤ 1024px): UI/미니맵 자동 숨김, 한 손가락 드래그 = 카메라 이동 (WASD 대체), 핀치 = 전진/후진, 짧은 탭 = 문 토글.
 - 디버그 모드: `index.html?debug` — 50 cm 그리드 + X/Z 축 + 가구 BBox 외곽선 + `window._mmData` 노출.
 - 레이아웃 변형: `?variant=<name>` (인프라만 — 호출 사이트 분기 추가 시 유효).

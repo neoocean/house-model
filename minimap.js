@@ -340,10 +340,11 @@
       }
     }
 
-    // 3) 가구 — hit 점이 bbox 안. PP 모드 시 _ppVisibleFurnIdxs 만 통과.
+    // 3) 가구 — hit 점이 bbox 안. PP/미팅 모드 (window._outletViewActive) 시
+    //    _ppVisibleFurnIdxs 만 통과 (CL 50983: powerPlanMode → _outletViewActive).
     var ins = 0.005;
     var furnMatched = -1, bestDist = Infinity;
-    var ppmVisIdxs = (window.powerPlanMode && window._ppVisibleFurnIdxs) ? window._ppVisibleFurnIdxs : null;
+    var ppmVisIdxs = (window._outletViewActive && window._ppVisibleFurnIdxs) ? window._ppVisibleFurnIdxs : null;
     for (var fi = 0; fi < FURNITURE_BBOX.length; fi++) {
       if (ppmVisIdxs && !ppmVisIdxs.has(fi)) continue;
       var b = FURNITURE_BBOX[fi];
@@ -425,7 +426,7 @@
     }
   }
 
-  // PP 모드에서 aim 라벨이 반응하는 객체 type set — 새 카테고리 추가는 여기에만.
+  // PP/미팅 모드에서 aim 라벨이 반응하는 객체 type set — 새 카테고리 추가는 여기에만.
   var PP_AIM_TYPES_NO_SHIFT   = new Set(['outlet']);
   var PP_AIM_TYPES_WITH_SHIFT = new Set(['outlet', 'wall']);
 
@@ -437,9 +438,10 @@
   // 라벨 갱신 — 매 프레임 drawMinimap에서 호출. 사용자 요청 (2026-05-08):
   // 한 위치에 여러 카테고리가 적용되면 모두 표시 (.aim-item 자식으로 stack).
   // 1인칭: 화면 중앙(크로스헤어, NDC=0,0) / 프리: 마우스 커서 위치를 NDC로 변환
-  // 전원 계획 모드 (window.powerPlanMode): SHIFT 없이도 콘센트 hit 시 라벨 + 높이 표시.
+  // PP/미팅 모드 (window._outletViewActive): SHIFT 없이도 콘센트 hit 시 라벨 + 높이 표시.
+  // (CL 50983: powerPlanMode → _outletViewActive — PP 와 미팅 양 모드 공통 필터.)
   function _updateAimLabel(){
-    var ppm = !!window.powerPlanMode;
+    var ppm = !!window._outletViewActive;
     if (!_shiftHeld && !ppm) {
       if (aimLabel.style.display !== 'none') {
         aimLabel.style.display = 'none';
@@ -991,8 +993,9 @@
   function drawNumberOverlay(c) {
     if (!_badgeLayout) _badgeLayout = computeBadgeLayout();
 
-    // 전원 계획 모드: 미니맵에는 벽 번호만 표시 (사용자 요청). 그 외 (방·문·가구·창문) 배지 모두 숨김.
-    var ppm = !!window.powerPlanMode;
+    // PP/미팅 모드: 미니맵에는 벽 번호만 표시 (사용자 요청). 그 외 (방·문·가구·창문) 배지 모두 숨김.
+    // (CL 50983: powerPlanMode → _outletViewActive — PP 와 미팅 양 모드 공통.)
+    var ppm = !!window._outletViewActive;
     var ppFilter = function(b){ return ppm ? (b.cat === 'wall') : true; };
 
     // 0) hover 대상 배지 분류 — 실제 위치(tx,ty) 또는 배치 위치(bx,by)

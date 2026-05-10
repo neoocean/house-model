@@ -185,11 +185,17 @@ function _buildPpVisIdxs(){
   return visIdxs;
 }
 
-function setPowerPlanMode(on){
-  if (on === powerPlanMode) return;
-  powerPlanMode = on;
-  window.powerPlanMode = on;          // minimap.js _updateAimLabel 가 참조
-
+// 추출된 시각 효과 — PP 모드와 5/8 미팅 모드 (meetingmode.js) 공통 헬퍼.
+// idempotent — 호출자가 자신의 플래그·배지·minimap 글로벌 관리.
+//
+// on=true:  가구 hide (`_ppFurnsToHide`) + outlet outlines visible + window._ppVisibleFurnIdxs 갱신
+// on=false: 위 모두 복원 (이전 visible 상태 / outlines 숨김 / _ppVisibleFurnIdxs=null)
+//
+// 부수 효과: window._outletViewActive 갱신 — minimap.js 의 배지 필터 + SHIFT-aim
+//   분기가 본 글로벌 참조. 이전엔 window.powerPlanMode 직접 참조였으나, PP/미팅
+//   양 모드가 같은 시각 필터를 공유하기 위해 추출 (CL 50983).
+function _applyOutletView(on){
+  window._outletViewActive = on;
   if (on){
     _initPowerPlanCache();
     _initOutletOutlines();
@@ -199,26 +205,43 @@ function setPowerPlanMode(on){
       m.visible = false;
     }
     for (var j = 0; j < _ppOutlines.length; j++) _ppOutlines[j].visible = true;
-    var badge = _getPpBadge(); if (badge) badge.style.display = 'block';
     window._ppVisibleFurnIdxs = _buildPpVisIdxs();
   } else {
     if (_ppFurnsToHide){
-      for (var i = 0; i < _ppFurnsToHide.length; i++){
-        var m = _ppFurnsToHide[i];
-        m.visible = (m.userData._ppPrev !== undefined) ? m.userData._ppPrev : true;
+      for (var k = 0; k < _ppFurnsToHide.length; k++){
+        var mm = _ppFurnsToHide[k];
+        mm.visible = (mm.userData._ppPrev !== undefined) ? mm.userData._ppPrev : true;
       }
     }
     if (_ppOutlines){
-      for (var j = 0; j < _ppOutlines.length; j++) _ppOutlines[j].visible = false;
+      for (var l = 0; l < _ppOutlines.length; l++) _ppOutlines[l].visible = false;
     }
-    var badge2 = _getPpBadge(); if (badge2) badge2.style.display = 'none';
     window._ppVisibleFurnIdxs = null;       // 모든 가구 SHIFT-aim 복원
   }
 }
 
-// 토글 키: 숫자 2 (Digit2). 이전 1 (Digit1) — 사용자 요청 (CL 50975+) 으로
-// 1 은 2026-05-08 미팅 결정사항 토글용으로 예약 (구체 사항 미정 — 별도 핸들러 추가 시
-// 본 파일과 동일 패턴으로 등록 권장).
+function setPowerPlanMode(on){
+  if (on === powerPlanMode) return;
+  // 5/8 미팅 모드와 mutually exclusive. 시각 효과 (_applyOutletView) 는
+  // 두 모드 합집합 전이가 있을 때만 호출 — 두 모드 어느 한쪽에서 켜져
+  // 있다가 다른 쪽으로 전환 시 깜빡임 회피.
+  var meetingActive = !!window.meetingMode;
+  var visualWasOn = powerPlanMode || meetingActive;
+  if (on && meetingActive){
+    // 미팅 → PP 전환: 미팅 플래그·배지만 정리, 시각은 유지.
+    window.meetingMode = false;
+    var mBadge = document.getElementById('meeting-badge');
+    if (mBadge) mBadge.style.display = 'none';
+  }
+  powerPlanMode = on;
+  window.powerPlanMode = on;          // 외부 (디버그·meetingmode.js mutual exclusion 체크) 용
+
+  if (visualWasOn !== on) _applyOutletView(on);
+  var badge = _getPpBadge(); if (badge) badge.style.display = on ? 'block' : 'none';
+}
+
+// 토글 키: 숫자 2 (Digit2). 이전 1 (Digit1) — CL 50974 에서 변경.
+// 숫자 1 (Digit1) 은 5/8 미팅 모드 (meetingmode.js) 가 처리.
 document.addEventListener('keydown', function(e){
   if (e.code === 'Digit2'){
     e.preventDefault();

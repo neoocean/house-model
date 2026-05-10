@@ -116,6 +116,14 @@ kbd{
   border:1px solid rgba(0,0,0,.25);
   pointer-events:none; display:none;
 }
+#meeting-badge{
+  position:fixed; top:54px; right:14px;
+  background:rgba(80,180,90,.92); color:#000;
+  font:bold 13px 'Malgun Gothic',sans-serif;
+  padding:9px 18px; border-radius:20px;
+  border:1px solid rgba(0,0,0,.25);
+  pointer-events:none; display:none;
+}
 #assert-banner{
   position:fixed; top:0; left:0; right:0;
   background:rgba(220,40,40,.92); color:#fff;
@@ -136,11 +144,13 @@ kbd{
   <kbd>마우스</kbd> — 시점 회전<br>
   <kbd>Space</kbd> — 카메라 모드 전환<br>
   <kbd>Q</kbd> / <kbd>E</kbd> — 위 / 아래 <small style="color:#aaa">(프리: 비행 / 1인칭: 눈높이 ±1cm)</small><br>
+  <kbd>1</kbd> — 5/8 미팅 결정사항<br>
   <kbd>2</kbd> — 전원 계획 모드<br>
   <kbd>M</kbd> — 미니맵 표시/숨김
 </div>
 <div id="badge" style="background:rgba(30,110,220,.88)">👤 1인칭 모드</div>
 <div id="power-plan-badge">🔌 전원 계획 모드 — 2: 종료</div>
+<div id="meeting-badge">📋 5/8 미팅 결정사항 — 1: 종료</div>
 <div id="ch">
   <svg width="24" height="24">
     <line x1="12" y1="3" x2="12" y2="21" stroke="white" stroke-width="1.5"/>
@@ -2398,6 +2408,7 @@ if (IS_MOBILE) {
 
 </script>
 <script src="powerplan.js"></script>
+<script src="meetingmode.js"></script>
 <script src="minimap.js"></script>
 <script>
 "use strict";

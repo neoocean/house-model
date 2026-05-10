@@ -8,7 +8,8 @@
 > **빌드 구성** (총 ~920 KB):
 > - `index.html` — ~2 600 줄 / 132 KB. 메인 HTML + UI/CSS + 인라인 JS (씬·라이팅(`LIGHTING`)·재료(`PAL`/`mSkirting` 전역)·레이아웃·헬퍼·텍스처(`TILE_CONFIG`/`WALLPAPER_CONFIG`)·`WALLPAPER_OVERRIDES`·바닥·천장·외벽·내벽·걸레받이·문·라벨·조명·벽지·키친핏·외부문·신발장·영림 3연동 중문·**어셔션 시각 띠 + console.assert/warn monkey-patch**·카메라·컨트롤·M 키 미니맵 토글·디버그·애니메이션 루프). `_doors[]` 애니메이션 루프는 `axis` 필드(기본 `'y'` 스윙, `'x'`/`'z'` 플랩, `kind:'slide'` 미닫이) 분기 보간. **PP 모드 (2 키 토글, 이전 1) 는 powerplan.js 로 분리됨.**
 > - `outlets.js` — ~210 줄 / 9 KB. `OUTLETS` 배열 (26 항목) + `_outlets[]` 레지스트리 + `gangLayout()` + `buildOutlet` IIFE. **한국 220V Type-F 형태**: 원형 리세스 컵 ⌀46mm + 둥근 핀 홀 2개 ⌀4.4mm 19mm 가로 간격. **2구만 세로 배치** (1/3/4구는 가로). 벽으로부터 돌출 ~37mm (CLEARANCE 35mm + plate 두께 1.5mm). 사용자 요청 (CL 50383) 으로 index.html 인라인 2 에서 분리, inline 1 직후 furniture.js 직전 로드. `_outletStats()` 콘솔 헬퍼 노출.
-> - `powerplan.js` — ~190 줄 / 9 KB. 전원 계획 모드 (2 키 토글, 이전 1, CL 50975+). `setPowerPlanMode` / `_initPowerPlanCache` (분류 휴리스틱 + isPreserved 헬퍼 + doorSet 분류) / `_initOutletOutlines` / `_buildPpVisIdxs` / Digit2 keydown 리스너. inline 2 직후 (모든 _doors push 완료 후) minimap.js 직전 로드 — CL 50409 분리.
+> - `powerplan.js` — ~200 줄. 전원 계획 모드 (2 키 토글, 이전 1, CL 50975+). `setPowerPlanMode` / `_initPowerPlanCache` (분류 휴리스틱 + isPreserved 헬퍼 + doorSet 분류) / `_initOutletOutlines` / `_buildPpVisIdxs` / **`_applyOutletView`** (CL 50983 추출 — 미팅 모드와 공유) / Digit2 keydown 리스너. inline 2 직후 (모든 _doors push 완료 후) meetingmode.js 직전 로드.
+> - `meetingmode.js` — ~70 줄. **5/8 미팅 결정사항 모드** (1 키 토글, CL 50983). `setMeetingMode` 가 `_applyOutletView(on)` 호출 + 자체 배지(`#meeting-badge`) 토글. PP 모드와 mutually exclusive (한 모드 켜면 다른 모드 자동 종료, 시각 효과는 합집합 전이에만 토글). 첫 시각화는 PP 와 동일 (가구 hide + 콘센트 outline) — 추후 조명·난방 분배기·난방 컨트롤러 등 단계적 추가 예정.
 > - `furniture.js` — 2 127 줄 / 105 KB. `FURN_REGISTRY` + `FURN_META` (27 개) + `FURN_CATALOG` (13 종 템플릿) + 가구 IIFE 27 개 (드럼세탁기·소파·다이닝·자전거·침대·책상·책꽂이 3종·벽걸이 자전거·신발장·붙박이장·주방 4종(하부 앞/우, 상부 앞, **축소판 반투명 플랩 상부 우**)·욕실 위생기구·벽등).
 > - `minimap.js` — ~1 400 줄 / 65 KB. 미니맵 IIFE (`ROOMS`/`WALLS`/`DOORS`/`FURNITURE`/`WINDOWS` 데이터 + `WINDOWS_BBOX`/`FURNITURE_BBOX`/`WINDOWS_H`/`WINDOWS_Y0` + 정적 레이어 캐시 + 번호 배지 (cat 필드, **PP 모드 시 wall 만 표시**) + SHIFT 치수 표시·콘센트 하이라이트·**PP 모드 SHIFT 시 콘센트+벽 한정 라벨** + 어셔션 §M/§P/§U/§CC + 콘솔 헬퍼 `_inspect`/`_gap`/`_listRoom`).
 > - `vendor/three.min.js` — 600 KB. Three.js 0.150.1 (UMD, MIT). `vendor/THREE_LICENSE` 동봉.
@@ -698,3 +699,57 @@
 - 1인칭 모드 진입 불가 (Space 키 필요) — 모바일은 항상 freeMode 에서 동작.
 
 **교훈**: 데스크톱-only 인터랙션 (마우스 + 키보드) 을 가정한 코드에 모바일을 더할 때, 가장 안전한 패턴은 (1) 모바일을 별도 입력 채널로 모델링 (`_touchInput` 가상 조이스틱) → 기존 `_move` 합산 로직에 합류, (2) 데스크톱 코드 경로는 그대로 보존 (`IS_MOBILE` 가드). 기존 핸들러를 모바일용으로 "다용도화" 하는 것보다 추가가 안전.
+
+### 4.22. 5/8 미팅 결정사항 모드 — PP 모드와 시각 효과 공유 (CL 50983)
+
+**요청**: "5월 8일 현장 미팅에서 전원 콘센트·콘센트·조명 위치 및 수량, 난방 분배기·컨트롤러 교체, 중문 발디딤틀 크기 등을 결정. 숫자키 1을 눌러 이 결정들을 시각화하게 만들려고 합니다. 숫자키 1을 누르면 현재 2를 누르면 나오는 전원 계획처럼 가구를 모두 숨기고 전원 콘센트가 나타나도록 해 주세요."
+
+**구조 결정**: 두 모드를 별도 토글로 유지하되 시각 효과는 공유.
+- 키 `1` (Digit1) → `setMeetingMode(on)` (meetingmode.js 신규)
+- 키 `2` (Digit2) → `setPowerPlanMode(on)` (powerplan.js, 기존)
+- 두 모드 mutually exclusive (한 모드 켜면 다른 모드 자동 종료)
+- 시각 효과는 `_applyOutletView(on)` 헬퍼 (powerplan.js 추출) 로 단일화
+
+대안 비교:
+- (A) 키 1 을 키 2 의 alias 로 → 두 키 같은 토글 → 미래 미팅 모드가 PP 와 다른 동작 (추가 시각화) 가질 때 alias 깨짐.
+- (B) 미팅 모드 별 상태 + 별 시각 로직 (완전 복제) → 현재 동일 효과를 두 번 구현, 변경 시 동기화 부담.
+- (C) 별 상태 + 시각 효과 추출 공유 ✓ → 추후 미팅 모드 자체 시각 (조명 강조 등) 추가 시 `_applyOutletView` 외에 합쳐짐. 의도 분리 + 코드 재사용.
+
+**시각 효과 추출 (`_applyOutletView`)**: 기존 `setPowerPlanMode` 본문에서 가구 hide / outlet outlines / `_ppVisibleFurnIdxs` 갱신을 추출. 부수 효과로 `window._outletViewActive = on` 설정 — minimap.js 가 이전엔 `window.powerPlanMode` 직접 참조로 배지 필터·SHIFT-aim 분기를 했으나, PP/미팅 양 모드 공통 필터로 통일 (3 곳 갱신).
+
+**Mutual exclusion 패턴**:
+```js
+function setPowerPlanMode(on){
+  ...
+  var meetingActive = !!window.meetingMode;
+  var visualWasOn = powerPlanMode || meetingActive;
+  if (on && meetingActive){
+    // 미팅 → PP 전환: 미팅 플래그·배지만 정리, 시각은 유지
+    window.meetingMode = false;
+    var mBadge = document.getElementById('meeting-badge');
+    if (mBadge) mBadge.style.display = 'none';
+  }
+  powerPlanMode = on;
+  ...
+  if (visualWasOn !== on) _applyOutletView(on);  // 합집합 전이에만 토글 — 깜빡임 회피
+  ...
+}
+```
+역방향(setMeetingMode) 도 대칭 구조.
+
+**배지**:
+- PP 모드 (`#power-plan-badge`): 주황 🔌 "전원 계획 모드 — 2: 종료"
+- 미팅 모드 (`#meeting-badge`): 녹색 📋 "5/8 미팅 결정사항 — 1: 종료"
+- 두 배지 같은 위치 (top:54px right:14px) — mutually exclusive 라 동시 표시 안 됨.
+
+**향후 확장 계획** (사용자 결정사항 6개 카테고리):
+1. ✅ 전원 콘센트 위치 및 수량 — 본 CL 에서 시각화 (PP 와 동일).
+2. (전원 외) 콘센트 위치 및 수량 — 데이터/통신/스위치 등? 추가 데이터 필요.
+3. 조명 위치 및 수량 — `CEILING_LIGHTS` 마커 강조 + 미팅 결정 반영.
+4. 난방 분배기 교체 — 모델에 없음, 신규 메시 추가 필요.
+5. 난방 컨트롤러 교체 — 모델에 없음, 신규 메시 추가 필요.
+6. ✅ 중문 발디딤틀 크기 — CL 50963 에서 모델 반영 (별도 시각화 불필요, 모드 내에서 자연 보임).
+
+추가 시각화는 `setMeetingMode(on)` 본문에 `_applyOutletView(on)` 호출 후 자체 함수 (`_applyMeetingExtras(on)` 등) 추가 형태 권장.
+
+**교훈**: "두 키가 같은 동작을 한다" 의 자연스러운 해법은 alias 가 아니라 "두 모드가 같은 시각 효과 헬퍼를 공유" — alias 는 미래 분기 발생 시 깨지지만, 헬퍼 공유는 한 쪽이 분기해도 다른 쪽 영향 없음. UI 표면 (배지/키) 의 분리와 내부 효과의 공유는 직교 관심사.
