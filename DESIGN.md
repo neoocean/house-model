@@ -833,3 +833,30 @@ function setPowerPlanMode(on){
 **BEHIND 가구 변경**: 이전엔 주방 하부장(앞) @FURN#51 (z=0.06~0.66) BEHIND, 본 CL 후엔 주방 하부장(우) @FURN#52 (z=0.66~2.64) BEHIND. 둘 다 [CC] 검사는 `meetingOnly:true` 로 skip — 평소엔 캐비닛 가려져 있고 미팅 모드 (키 1) 에서만 가시.
 
 **파일**: FURN_META[74] (pos/bbox/source) + FURNITURE/_BBOX (인덱스 27) + IIFE 의 메인 인입관 길이 산출.
+
+### 4.26. 미팅 모드 진입 시 UI/미니맵 자동 숨김 (본 CL)
+
+**요청**: "1키 누르면 미니맵, '아파트 3D 뷰어' 패널 숨겨주세요. 1을 다시 누르면 나타나야합니다."
+
+**동기**: 미팅 모드 (키 1) 의 목적은 5/8 결정사항 항목 (콘센트·난방 분배기 등) 을 한 화면에서 검토 — 키바인딩 안내 (#ui) 와 미니맵 (#minimap, #minimap-legend) 은 검토 시 시각 잡음. 모드 진입 시 자동 숨김, 종료 시 자동 복원.
+
+**구현 (`meetingmode.js _applyMeetingUI(on)`)**:
+- `setMeetingMode(on)` 끝에 `_applyMeetingUI(on)` 호출.
+- `on=true` → `display:none`, `on=false` → `display:''` (HTML 기본 = visible).
+- 모바일 (`IS_MOBILE`) 에선 본 토글 skip — 모바일은 init 단계에서 이미 숨김 (CL 50979) 이라 다시 visible 로 만들면 모바일 정책 위반.
+- `setPowerPlanMode` mutual exclusion: 미팅 → PP 전환 시 `_applyMeetingUI(false)` 로 복원 — PP 는 UI/미니맵 표시 유지 정책.
+
+**상태 표**:
+| 진입 | #ui / #minimap |
+|---|---|
+| 시작 (모드 off) | visible (HTML 기본) |
+| 키 1 (미팅) | **hidden** |
+| 키 1 → 키 1 (종료) | visible (복원) |
+| 키 2 (PP) | visible (PP 는 미적용) |
+| 키 1 → 키 2 (전환) | visible (mutual exclusion 분기에서 복원) |
+| 키 2 → 키 1 (전환) | hidden |
+| 모바일 | 항상 hidden (초기 정책 우선, 본 토글 skip) |
+
+**알려진 한계**: 사용자가 M 키로 미니맵을 수동 숨김 한 상태에서 미팅 모드 진입·종료 시 → 종료 시점에 미니맵이 강제 visible 됨 (이전 M 토글 상태 미보존). 사용자 요청이 "다시 누르면 나타나야" 이므로 의도된 동작.
+
+**교훈**: 모드별 UI 상태를 토글하는 패턴은 모바일 / 수동 토글 등 여러 진입점과 충돌 가능. "복원" 시점에 (a) 진입 시 상태 보존 후 복원, 또는 (b) 강제 default 로 통일 — 둘 중 하나 선택 명시 필요. 본 케이스는 (b) — 사용자 명시 요청 ("다시 누르면 나타나야") 이 단순함을 정당화.

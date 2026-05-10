@@ -63,6 +63,20 @@ function _applyMeetingExtras(on){
   }
 }
 
+// 미팅 모드 진입 시 UI 패널 (#ui '아파트 3D 뷰어') + 미니맵 (#minimap, #minimap-legend)
+// 숨김 — 사용자 요청 ("1키 누르면 미니맵·UI 숨기기, 다시 누르면 복원").
+// 모바일에서는 init 단계에서 이미 숨겨져 있으므로 본 토글 적용 안 함 (mobile 정책 보존).
+function _applyMeetingUI(on){
+  if (typeof IS_MOBILE !== 'undefined' && IS_MOBILE) return;
+  var disp = on ? 'none' : '';
+  var ui = document.getElementById('ui');
+  var mc = document.getElementById('minimap');
+  var ml = document.getElementById('minimap-legend');
+  if (ui) ui.style.display = disp;
+  if (mc) mc.style.display = disp;
+  if (ml) ml.style.display = disp;
+}
+
 function setMeetingMode(on){
   if (on === !!window.meetingMode) return;
   // PP 모드와 mutually exclusive. 시각 효과 (_applyOutletView) 는 두 모드
@@ -80,6 +94,8 @@ function setMeetingMode(on){
   if (visualWasOn !== on) _applyOutletView(on);
   // meeting-only 시각 (난방 분배기 등) — _applyOutletView 후에 호출해 hide override.
   _applyMeetingExtras(on);
+  // UI 패널 + 미니맵 자동 숨김/복원 (모바일 제외).
+  _applyMeetingUI(on);
   var badge = _getMeetingBadge(); if (badge) badge.style.display = on ? 'block' : 'none';
 }
 

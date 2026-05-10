@@ -228,11 +228,13 @@ function setPowerPlanMode(on){
   var meetingActive = !!window.meetingMode;
   var visualWasOn = powerPlanMode || meetingActive;
   if (on && meetingActive){
-    // 미팅 → PP 전환: 미팅 플래그·배지·meeting-only 시각 모두 정리.
-    // 시각 합집합은 유지 (_applyOutletView 미호출). 단 meeting-only 메시는
-    // PP 모드에선 보이지 않아야 하므로 _applyMeetingExtras(false) 로 hide.
+    // 미팅 → PP 전환: 미팅 플래그·배지·meeting-only 시각·UI 모두 정리.
+    // 시각 합집합 (가구 hide + outlet outline) 은 유지 (_applyOutletView 미호출).
+    // 단 meeting-only 메시는 PP 에선 안 보여야 하므로 hide; UI/미니맵은 PP 에서
+    // 보여야 하므로 복원.
     window.meetingMode = false;
     if (typeof _applyMeetingExtras === 'function') _applyMeetingExtras(false);
+    if (typeof _applyMeetingUI === 'function') _applyMeetingUI(false);
     var mBadge = document.getElementById('meeting-badge');
     if (mBadge) mBadge.style.display = 'none';
   }
